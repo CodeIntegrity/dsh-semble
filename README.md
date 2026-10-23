@@ -2,20 +2,34 @@
 
 [![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
 
-> Semantic code search for DeepSeek Harness.
->
-> Ask **where** something lives instead of recalling **what** it is called, and the agent finds the
-> file, reads it, then edits.
-
 English | [简体中文](README.zh-CN.md)
 
-`dsh-semble` brings [Semble](https://github.com/MinishLab/semble)'s code index into every DSH
-session as two native MCP tools. `grep` needs a string you already know; this needs a description of
-behaviour — "where is the retry policy applied when a request fails", "which module decides the
-scoring weights". That is usually the moment an agent starts guessing file names.
+`dsh-semble` brings [Semble](https://github.com/MinishLab/semble) — a code search engine built for
+agents — into each DSH session as two native MCP tools: `search` and `find_related`. `grep` needs a
+string you already know; this needs a description of behaviour — "where is the retry policy applied
+when a request fails", "which module decides the scoring weights". That is usually the moment an
+agent starts guessing file names. And because only the matched snippets come back instead of whole
+files, one query costs a fraction of the tokens of a grep-then-read detour: upstream benchmarks
+measure **~99% fewer tokens** than grep+read, at retrieval quality on par with code-specialized
+transformer retrievers.
 
-Nothing to learn beyond that: after installation the tools sit next to `read` and `grep`, and the
-agent decides when the index is worth a call.
+Under the hood, Semble splits every file into code-aware chunks with tree-sitter, then retrieves
+against two complementary signals: static **Model2Vec** embeddings (the code-specialized
+`potion-code-16M-v2` model) for semantic similarity, and **BM25** for lexical matches on identifiers
+and API names. The two result lists are fused with **Reciprocal Rank Fusion** (RRF), then re-ranked
+by code-aware signals: a chunk that *defines* the queried symbol outranks one that merely mentions
+it, query words matching identifier stems inside a chunk earn extra weight (`parse config →
+parseConfig / config_parser`), several hits from the same file promote the file as a whole, and
+test files, examples and compat shims are demoted so the canonical implementation surfaces first.
+The embedding model is static — no transformer forward pass at query time — so indexing a typical
+repo takes under a second and every query lands in milliseconds, entirely on CPU with no API key,
+GPU or external service. Indexes are cached to disk on first use and refreshed incrementally as
+files change; `https://` repositories are cloned on demand into the same cache.
+
+**Before first use.** The plugin runs on `uvx`, which must be on PATH, and the first launch is
+online: it installs `semble[mcp]` from PyPI and downloads the `potion-code-16M-v2` model from
+huggingface.co. Indexing and queries run locally once that is done; if your network cannot reach
+huggingface.co, point `HF_ENDPOINT` at a mirror.
 
 ## What you get
 
@@ -227,7 +241,7 @@ The body never enters the system prompt. To keep the tools and drop the skill, d
 `ctx.skills.register(...)` block in `lib/index.js`; `/semble` keeps working because it is registered
 separately.
 
-## How it works
+## How it is wired
 
 The bundle inserts two loader rows:
 

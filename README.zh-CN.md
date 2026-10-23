@@ -2,17 +2,27 @@
 
 [![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
 
-> 给 DeepSeek Harness 的语义代码检索。
->
-> 你只需要问「这东西在哪」，不必先想起它叫什么——agent 自己找到文件、读它、再改。
-
 [English](README.md) | 简体中文
 
-`dsh-semble` 把 [Semble](https://github.com/MinishLab/semble) 的代码索引接进每个 DSH 会话，
-以两个原生 MCP 工具的形式出现。`grep` 要求你手里已经有一个字符串；它要的是一句行为描述——
-「请求失败时重试策略在哪生效」「哪个模块决定了打分权重」。而这种时刻，agent 通常正好开始猜文件名。
+`dsh-semble` 把 [Semble](https://github.com/MinishLab/semble) ——一个专为 agent 打造的代码检索引擎
+——接进 DSH 会话，以两个原生 MCP 工具的形式出现：`search` 与 `find_related`。`grep` 要求你手里已经
+有一个字符串；它要的是一句行为描述——「请求失败时重试策略在哪生效」「哪个模块决定了打分权重」。
+而这种时刻，agent 通常正好开始猜文件名。而且它只返回命中的片段而不是整个文件，单次检索的 token
+开销远低于「先 grep 再整读文件」的路径——按上游 benchmark，比 grep+read 平均省约 99% 的 token，
+检索质量与代码专用的 transformer 检索模型持平。
 
-除此之外没有要学的东西：装好之后两个工具就摆在 `read`、`grep` 旁边，由 agent 决定什么时候值得查一次索引。
+**怎么实现的。** Semble 先用 tree-sitter 把每个文件切成代码感知的分块，检索时叠加两套互补信号：
+静态 Model2Vec 嵌入（代码专用模型 `potion-code-16M-v2`）负责语义相似度，BM25 负责标识符与 API 名
+的词法命中；两份结果用 Reciprocal Rank Fusion（RRF）融合，再按代码感知的规则重排——定义了查询符号
+的分块排在只提到它的前面，查询词在分块内以标识符词干出现（`parse config` → `parseConfig` /
+`config_parser`）会被加分，同一文件多个分块命中会提升整个文件，而测试文件、示例与兼容垫片被降权，
+让正式的实现先冒出来。嵌入模型是静态的，查询时没有 transformer 前向计算，所以给普通仓库建索引
+不到一秒、每次查询只需毫秒，全程 CPU，不需要 API key、GPU 或外部服务。索引首次使用时写入磁盘缓存，
+之后随文件改动增量刷新；`https://` 仓库按需 clone 进同一份缓存。
+
+**开始前须知。** 本插件运行时依赖 PATH 上的 `uvx`；首次启动需要联网——它会从 PyPI 安装
+`semble[mcp]`，再从 huggingface.co 下载 `potion-code-16M-v2` 模型，之后索引与查询都在本地完成。
+无法访问 huggingface.co 的内网环境，请先把 `HF_ENDPOINT` 指向可用的镜像站。
 
 ## 你会得到什么
 
@@ -209,7 +219,7 @@ DSH 的 skill 惰性加载：
 正文不进系统提示词。只想保留工具、不要 skill，删掉 `lib/index.js` 里的 `ctx.skills.register(...)`
 代码块即可；`/semble` 是单独注册的，不受影响。
 
-## 工作原理
+## bundle 装配
 
 bundle 插入两行 loader：
 
