@@ -1,6 +1,6 @@
 {
   "name": "@local/semble-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Semble 语义代码搜索（semantic code search）MCP bundle：安装即用，无需客户端配置。Semble semantic code search for DeepSeek Harness via MCP (search / find_related).",
