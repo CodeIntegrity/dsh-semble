@@ -31,8 +31,8 @@
 | `mcp__semble__search` | 一句话描述代码做什么、或者它在哪儿 | 按相关度排序的 `file:line` 命中 + 片段 |
 | `mcp__semble__find_related` | 一个你已经知道的位置 | 它的邻居：其他实现、调用方、测试 |
 
-另外还注册了一个 slash command：`/semble savings` 和 `/semble file-types`，用来跑 MCP 没有暴露的
-两个 CLI 报表，见[命令](#命令)。
+另外还注册了一个 slash command：`/semble savings`、`/semble file-types` 和 `/semble version`，用来跑
+MCP 没有暴露的 CLI 报表，见[命令](#命令)。
 
 一次典型对话：
 
@@ -173,8 +173,9 @@ MCP 只暴露 `search` 与 `find_related`；Semble 的两个报表子命令只�
 | --- | --- |
 | `/semble savings` | 用片段代替整文件省下的 token，按时间区间和调用类型分列 |
 | `/semble file-types` | Semble 会索引的扩展名，按内容类型分组的 JSON |
+| `/semble version` | `uvx` 解析到的 Semble 版本——最快的安装自检 |
 
-两者都在宿主进程里跑：不进模型、不弹审批，输出就是 CLI 原文（已关闭颜色）。用的是同一份
+三个命令都在宿主进程里跑：不进模型、不弹审批，输出就是 CLI 原文（已关闭颜色）。用的是同一份
 `uvx --from "semble[mcp]" semble` 安装，所以 MCP server 能用的地方它就能用。
 
 `savings` 读的是 MCP server 写的缓存，因此只统计同一个 `SEMBLE_CACHE_LOCATION` 下的检索。要看全量汇总
@@ -262,7 +263,7 @@ dsh plugin --profile web remove dsh-semble
 | --- | --- | --- |
 | 装完显示「待重启」 | 宿主在安装前已经加载了层列表 | 重启 DSH 一次 |
 | 工具能用但显示「未加载」 | `cordis.patch.yml` 缺了锚点行 | 重装本版本或更新版本 |
-| `mcp__semble__*` 一直不出现 | 缺 `uvx`，或首次下载失败 | 手动跑 `uvx --from "semble[mcp]" semble --version` 看报错 |
+| `mcp__semble__*` 一直不出现 | 缺 `uvx`，或首次下载失败 | 输入 `/semble version`，或在终端手动跑 `uvx --from "semble[mcp]" semble --version` 看报错 |
 | 首次检索卡几分钟 | 模型一次性下载 | 等待，或设 `HF_ENDPOINT` |
 | 首次检索报 `toolCallTimeoutMs` 超时 | 建索引 + 下载模型超过了上限 | 调大 `toolCallTimeoutMs`，或先用 CLI 检索热身 |
 | 大改之后检索结果偏旧 | 磁盘索引复用了「自认为没变」的文件 | `uvx --from "semble[mcp]" semble clear index` 后再检索 |

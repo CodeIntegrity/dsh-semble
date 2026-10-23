@@ -62,6 +62,6 @@ Controls, all on both tools unless noted:
 
 `mcp__semble__search` and `mcp__semble__find_related` only exist when this bundle's MCP connection
 mounted in the current session. If they are absent from your toolset, say so and fall back to
-`grep`/`glob`; do not narrate a call you cannot make. The user can still run `/semble savings` and
-`/semble file-types` from the composer — those are host commands and do not depend on the MCP
-connection.
+`grep`/`glob`; do not narrate a call you cannot make. The user can still run `/semble savings`,
+`/semble file-types` and `/semble version` from the composer — those are host commands and do not
+depend on the MCP connection.

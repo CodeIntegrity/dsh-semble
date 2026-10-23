@@ -38,8 +38,9 @@ huggingface.co, point `HF_ENDPOINT` at a mirror.
 | `mcp__semble__search` | a sentence describing the code or where it lives | ranked `file:line` hits with snippets |
 | `mcp__semble__find_related` | one location you already know | its neighbours: other implementations, callers, tests |
 
-The bundle also registers one slash command, `/semble`, for the two reporting subcommands that MCP
-does not expose: `/semble savings` and `/semble file-types`. See [Commands](#commands).
+The bundle also registers one slash command, `/semble`, for the reporting subcommands that MCP
+does not expose: `/semble savings`, `/semble file-types` and `/semble version`. See
+[Commands](#commands).
 
 A typical exchange:
 
@@ -182,15 +183,16 @@ list costs one first-time index build per repository.
 
 ## Commands
 
-MCP exposes `search` and `find_related`; Semble's two reporting subcommands only exist in its CLI. The
+MCP exposes `search` and `find_related`; Semble's reporting subcommands only exist in its CLI. The
 bundle registers `/semble` for them:
 
 | Command | Prints |
 | --- | --- |
 | `/semble savings` | tokens saved by returning snippets instead of whole files, per period and per call type |
 | `/semble file-types` | the extensions Semble indexes, as JSON grouped by content type |
+| `/semble version` | the Semble release the `uvx` installation resolved — the quickest install check |
 
-Both run in the host process: nothing is sent to the model, no approval prompt appears, and the output
+All of them run in the host process: nothing is sent to the model, no approval prompt appears, and the output
 is the CLI's own (colour disabled). The same `uvx --from "semble[mcp]" semble` installation is used, so
 `/semble` works exactly where the MCP server works.
 
@@ -287,7 +289,7 @@ The cached index and the HuggingFace model stay on disk and are reused after a r
 | --- | --- | --- |
 | Row reads 待重启 after install | the host loaded its layer list before the install | restart DSH once |
 | Tools work, row reads 未加载 | `cordis.patch.yml` lost the anchor row | reinstall this version or newer |
-| `mcp__semble__*` never appears | `uvx` missing, or the first download failed | run `uvx --from "semble[mcp]" semble --version` and read the error |
+| `mcp__semble__*` never appears | `uvx` missing, or the first download failed | type `/semble version`, or run `uvx --from "semble[mcp]" semble --version` in a terminal, and read the error |
 | First search takes minutes | one-time model download | wait, or set `HF_ENDPOINT` |
 | First search fails on `toolCallTimeoutMs` | index build + model download outran the limit | raise `toolCallTimeoutMs`, or warm the cache once with a CLI search |
 | Search looks stale after a large refactor | the disk index reuses files it believes unchanged | `uvx --from "semble[mcp]" semble clear index`, then search again |
