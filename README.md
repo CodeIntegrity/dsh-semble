@@ -136,6 +136,27 @@ HuggingFace model stay on disk and are reused if you reinstall.
 | First search hangs for minutes | Embedding model download (one-time) | Wait, or set `HF_ENDPOINT` to a reachable mirror |
 | `ERR_PNPM_GIT_RESOLVE_FAILED` during install | No network route to github.com | Use a tarball URL or an npm mirror instead |
 
+## The bundled skill
+
+Installing the bundle also registers one routing skill, `semble-code-search`. It exists because the
+tools themselves do not advertise *when* they are worth calling: a model that reaches for `grep`
+first never discovers what the index could have done for it.
+
+DSH loads skills lazily, so the cost model is:
+
+| At | Enters the session | Size |
+| --- | --- | --- |
+| Before the first request | one catalog entry: name plus a capped description | a few hundred bytes per session |
+| When the model calls `skill` | the full `skills/semble/SKILL.md` body | ~2 KB, only when used |
+| When the user types `/semble-code-search` | the same body, injected into that step | manual |
+
+The body never enters the system prompt. That is by design: a skill body pinned there is paid for on
+every session whether or not the tools are used.
+
+To drop only the skill and keep the tools, delete the `ctx.skills.register(...)` call in
+`lib/index.js`. The body lives at `skills/semble/SKILL.md` and is also valid as a hand-placed
+`~/.dsh/skills/semble/SKILL.md` if you prefer the filesystem provider.
+
 ## Update policy
 
 Default spec is floating (`semble[mcp]`) so releases follow the upstream repository automatically.

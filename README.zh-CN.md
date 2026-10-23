@@ -131,6 +131,22 @@ dsh plugin --profile web remove @local/semble-mcp
 | 首次检索卡几分钟 | 嵌入模型一次性下载 | 等待，或把 `HF_ENDPOINT` 指向可达镜像 |
 | 安装时报 `ERR_PNPM_GIT_RESOLVE_FAILED` | 到 github.com 没有网络通路 | 改用 tarball 链接或 npm 镜像 |
 
+## 内置 skill
+
+安装本 bundle 会同时注册一个路由 skill：`semble-code-search`。它的存在理由是：工具本身不会说明「什么时候值得用它」——模型先摸 `grep` 的话，根本不会发现索引能替它做什么。
+
+DSH 的 skill 是惰性加载的，成本结构如下：
+
+| 时机 | 进入会话的内容 | 体量 |
+| --- | --- | --- |
+| 首次请求前 | 一条目录条目：名称 + 截断后的描述 | 每会话几百字节 |
+| 模型调 `skill` 工具时 | 完整 `skills/semble/SKILL.md` 正文 | 约 2 KB，且只在实际用到时 |
+| 用户输入 `/semble-code-search` | 同一份正文，注入当步 | 手动触发 |
+
+正文**不会**进系统提示词。这是刻意设计：常驻在 system prompt 里的正文，每个会话都要重复付全量 token，不管这次用没用到工具。
+
+只想保留工具、不要 skill，删掉 `lib/index.js` 里的 `ctx.skills.register(...)` 调用即可。正文文件在 `skills/semble/SKILL.md`，也可以手工放到 `~/.dsh/skills/semble/SKILL.md` 交给文件系统 provider。
+
 ## 更新策略
 
 默认 spec 为浮动版本（`semble[mcp]`），发版自动跟随上游仓库。
