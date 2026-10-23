@@ -36,6 +36,13 @@
           - 'semble[mcp]'
           - semble
         failOnStartupError: true
+        # The first search in a repository also builds that repository's index:
+        # chunking runs locally and the embedding model is downloaded once from
+        # HuggingFace. That routinely exceeds the MCP client's 60 s default, which
+        # would fail the first call even though the server is healthy. Five
+        # minutes covers a cold start on a slow link; once an index exists, calls
+        # answer in seconds and the higher ceiling costs nothing.
+        toolCallTimeoutMs: 300000
         # No `env` defaults on purpose: the embedding model
         # (minishlab/potion-code-16M-v2) is fetched from huggingface.co unless the
         # operator asks otherwise. On networks where huggingface.co is unreachable,

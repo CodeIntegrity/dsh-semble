@@ -21,6 +21,9 @@
 | `mcp__semble__search` | 一句话描述代码做什么、或者它在哪儿 | 按相关度排序的 `file:line` 命中 + 片段 |
 | `mcp__semble__find_related` | 一个你已经知道的位置 | 它的邻居：其他实现、调用方、测试 |
 
+另外还注册了一个 slash command：`/semble savings` 和 `/semble file-types`，用来跑 MCP 没有暴露的
+两个 CLI 报表，见[命令](#命令)。
+
 一次典型对话：
 
 > **你：** DSH 判断「插件已加载」是在哪儿决定的？
@@ -48,7 +51,7 @@
 dsh-semble
 ```
 
-钉住版本写 `dsh-semble@2.0.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
+钉住版本写 `dsh-semble@2.1.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
 因为这个 profile 的 `node_modules` 与 lockfile 由 Electron 应用独占。
 
 ### 命令行
@@ -105,10 +108,76 @@ curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS / Linux
 | `args` | `--from 'semble[mcp]' semble` | 追加 `--content all` 让文档和配置也进索引 |
 | `args`（版本） | 浮动 | 改成 `semble[mcp]==X.Y.Z` 钉版本 |
 | `env` | 空 | 受限网络加 `HF_ENDPOINT`；搬索引加 `SEMBLE_CACHE_LOCATION` |
+| `toolCallTimeoutMs` | `300000` | 首次调用要建索引并下载模型；想更快失败就调小 |
 | `cwd` | 继承 | 保持不设；每次调用的 `repo` 用绝对路径 |
 | `command` | `uvx` | 如果只装了 `.cmd` 包装，改指向 `uvx.exe` |
 
 改设置会重启 MCP 连接；磁盘上的索引缓存不受影响。
+
+## 调优
+
+Semble 从**运行它的进程**的环境变量读配置。MCP server 的变量写在 `semble-mcp` 行的 `env` 里。
+`/semble` 是另起进程、继承宿主环境，所以要让报表和检索看到同一份配置时，两处都要设——真正会出问题的
+只有 `SEMBLE_CACHE_LOCATION`。
+
+| 变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `SEMBLE_INDEX_WORKERS` | `4` | 首次建索引时切块用的工作进程数；`0` 表示在主进程里做。多核机器可调大，不想让后台检索吃满 CPU 就调小 |
+| `SEMBLE_MCP_IDLE_TIMEOUT` | `0`（永不过期） | 空闲索引在内存缓存里保留多少秒；配合 10 个索引的上限，设 `1800` 可以释放已经不看的仓库 |
+| `SEMBLE_MODEL_NAME` | `minishlab/potion-code-16M-v2` | 换一个 Model2Vec 嵌入模型：本地路径或 Hugging Face 仓库 |
+| `SEMBLE_MAX_FILE_BYTES` | `1000000` | 超过这个大小的文件跳过；生成代码也想进索引就调大 |
+| `SEMBLE_CLONE_TIMEOUT` | `60` | clone `https://` 仓库的超时秒数 |
+| `HF_ENDPOINT` | `https://huggingface.co` | 一次性模型下载走的镜像 |
+
+### 排除文件
+
+索引器认 `.gitignore`，另外认仓库根目录的 `.sembleignore`，用来排除「git 要留、但检索不该看」的文件：
+生成的客户端、fixtures、vendored 目录。语法同 gitignore，支持取反：
+
+```gitignore
+# .sembleignore
+packages/client/generated/
+test/fixtures/
+*.min.js
+!*.proto          # 把被 .gitignore 排除的文件强行拉回索引
+```
+
+只对某一个仓库成立的规则就留在那个仓库的 `.sembleignore` 里，别塞进插件设置。
+
+### 检索多个仓库
+
+`repo` 接受数组，所以一次调用就能把服务端和它依赖的公共库放在一起比：
+
+```json
+{ "query": "重试策略在哪儿生效", "repo": ["D:\\work\\service", "D:\\work\\shared"] }
+```
+
+git 地址同理，首次会 clone 进缓存。每个仓库各有一份索引；传数组时，每个仓库各付一次首次建索引的成本。
+
+## 命令
+
+MCP 只暴露 `search` 与 `find_related`；Semble 的两个报表子命令只存在于 CLI。bundle 为它们注册了
+`/semble`：
+
+| 命令 | 输出 |
+| --- | --- |
+| `/semble savings` | 用片段代替整文件省下的 token，按时间区间和调用类型分列 |
+| `/semble file-types` | Semble 会索引的扩展名，按内容类型分组的 JSON |
+
+两者都在宿主进程里跑：不进模型、不弹审批，输出就是 CLI 原文（已关闭颜色）。用的是同一份
+`uvx --from "semble[mcp]" semble` 安装，所以 MCP server 能用的地方它就能用。
+
+`savings` 读的是 MCP server 写的缓存，因此只统计同一个 `SEMBLE_CACHE_LOCATION` 下的检索。要看全量汇总
+或做维护，回终端：
+
+```sh
+uvx --from "semble[mcp]" semble savings        # 同一份报表，在 shell 里看
+uvx --from "semble[mcp]" semble clear          # 清缓存
+uvx --from "semble[mcp]" semble clear index    # 强制重建索引
+```
+
+`/semble` 故意不做检索捷径——那是 MCP 工具的事；也故意不带破坏性子命令，因为 slash command 没法弹确认。
+只敲 `/semble` 会显示用法。
 
 ## 平台差异
 
@@ -134,8 +203,11 @@ DSH 的 skill 惰性加载：
 | 模型调 `skill` | 完整 `skills/semble/SKILL.md` 正文 | 约 2 KB，只在实际用到时 |
 | 你输入 `/semble-code-search` | 同一份正文，注入当步 | 手动 |
 
+`/semble-code-search` 注入的是**说明**：真正的检索仍然走 MCP 工具。可执行的命令是 `/semble`
+（见[命令](#命令)），它在宿主里跑 CLI 报表，不花模型 token。
+
 正文不进系统提示词。只想保留工具、不要 skill，删掉 `lib/index.js` 里的 `ctx.skills.register(...)`
-调用即可。
+代码块即可；`/semble` 是单独注册的，不受影响。
 
 ## 工作原理
 
@@ -155,11 +227,11 @@ Semble 本体**不做 vendored 内嵌**。插件只声明如何从 PyPI 拉起�
 用更新的版本重跑安装，或在设置页点「更新」：
 
 ```sh
-dsh plugin --profile web add dsh-semble@2.0.0
+dsh plugin --profile web add dsh-semble@2.1.0
 ```
 
 源码安装则换 ref 重跑，例如
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.0.0`。
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.1.0`。
 
 ## 卸载
 
@@ -182,6 +254,10 @@ dsh plugin --profile web remove dsh-semble
 | 工具能用但显示「未加载」 | `cordis.patch.yml` 缺了锚点行 | 重装本版本或更新版本 |
 | `mcp__semble__*` 一直不出现 | 缺 `uvx`，或首次下载失败 | 手动跑 `uvx --from "semble[mcp]" semble --version` 看报错 |
 | 首次检索卡几分钟 | 模型一次性下载 | 等待，或设 `HF_ENDPOINT` |
+| 首次检索报 `toolCallTimeoutMs` 超时 | 建索引 + 下载模型超过了上限 | 调大 `toolCallTimeoutMs`，或先用 CLI 检索热身 |
+| 大改之后检索结果偏旧 | 磁盘索引复用了「自认为没变」的文件 | `uvx --from "semble[mcp]" semble clear index` 后再检索 |
+| `/semble` 答「Could not start the Semble CLI」 | 宿主 PATH 上没有 `uvx` | 装 uv，重启 DSH |
+| `savings` 统计的调用次数偏少 | 报表读的是 MCP 行 `env` 里的缓存位置，`/semble` 不会继承 | 在宿主环境里也设一次 `SEMBLE_CACHE_LOCATION` |
 | 安装时报 `ERR_PNPM_GIT_RESOLVE_FAILED` | 到 github.com 没有网络通路 | 改用 tarball 链接或镜像 |
 
 ## 开发
@@ -191,7 +267,10 @@ git clone https://github.com/CodeIntegrity/dsh-semble
 dsh plugin --profile web add link:$(pwd)   # 之后改代码、重启 DSH
 ```
 
-没有构建步骤：`lib/index.js` 是纯 ESM，`cordis.patch.yml` 直接读取。唯一运行时依赖是 `uv`。
+没有构建步骤：`lib/` 是纯 ESM，`cordis.patch.yml` 直接读取。唯一运行时依赖是 `uv`。
+
+`npm test` 用 Node 自带的 test runner 跑测试。涉及子进程的用例用 Node 可执行文件代替 `uvx`，
+所以不会下载 Semble，也不会碰你的缓存。
 
 ## 许可
 

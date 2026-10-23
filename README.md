@@ -24,6 +24,9 @@ agent decides when the index is worth a call.
 | `mcp__semble__search` | a sentence describing the code or where it lives | ranked `file:line` hits with snippets |
 | `mcp__semble__find_related` | one location you already know | its neighbours: other implementations, callers, tests |
 
+The bundle also registers one slash command, `/semble`, for the two reporting subcommands that MCP
+does not expose: `/semble savings` and `/semble file-types`. See [Commands](#commands).
+
 A typical exchange:
 
 > **You:** Where does DSH decide that a plugin is "loaded"?
@@ -54,7 +57,7 @@ than "the best answer".
 dsh-semble
 ```
 
-Pin a version with `dsh-semble@2.0.0`. The settings page is the only supported route for the
+Pin a version with `dsh-semble@2.1.0`. The settings page is the only supported route for the
 `desktop` profile — the CLI refuses it because the Electron app owns that profile's `node_modules`
 and lockfile.
 
@@ -113,10 +116,82 @@ Edit the `semble-mcp` row in **Settings → Plugins**:
 | `args` | `--from 'semble[mcp]' semble` | append `--content all` to index docs and config too |
 | `args` (version) | floating | `semble[mcp]==X.Y.Z` pins a release |
 | `env` | empty | `HF_ENDPOINT` on restricted networks, `SEMBLE_CACHE_LOCATION` to move the index |
+| `toolCallTimeoutMs` | `300000` | the first call builds the index and downloads the model; lower it to fail faster |
 | `cwd` | inherited | keep unset; per-call `repo` values should be absolute paths |
 | `command` | `uvx` | point it at `uvx.exe` if only a `.cmd` shim is installed |
 
 Changing settings restarts the MCP connection; disk index caches survive.
+
+## Tuning
+
+Semble reads its configuration from the environment of the process that runs it. For the MCP server,
+put these in the `env` field of the `semble-mcp` row. `/semble` spawns a separate process and inherits
+the host environment instead, so export a value in both places when a report must agree with search —
+`SEMBLE_CACHE_LOCATION` is the one that matters.
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `SEMBLE_INDEX_WORKERS` | `4` | worker processes that chunk a repository during the first index; `0` chunks in-process. Raise it on a many-core machine, lower it to stop a background search from saturating the CPU |
+| `SEMBLE_MCP_IDLE_TIMEOUT` | `0` (never) | seconds an idle repository index stays in the in-memory cache; with the 10-index cap, `1800` releases repositories you have moved on from |
+| `SEMBLE_MODEL_NAME` | `minishlab/potion-code-16M-v2` | alternative Model2Vec embedding model, as a local path or a Hugging Face repository |
+| `SEMBLE_MAX_FILE_BYTES` | `1000000` | files above this size are skipped; raise it for generated code worth indexing |
+| `SEMBLE_CLONE_TIMEOUT` | `60` | seconds allowed for cloning an `https://` repository |
+| `HF_ENDPOINT` | `https://huggingface.co` | mirror used for the one-time model download |
+
+### Excluding files
+
+The indexer honours `.gitignore`, plus a `.sembleignore` at the repository root for files git keeps but
+search should skip: generated clients, fixtures, vendored trees. The syntax is gitignore's, negation
+included:
+
+```gitignore
+# .sembleignore
+packages/client/generated/
+test/fixtures/
+*.min.js
+!*.proto          # force-include a file .gitignore excludes
+```
+
+A pattern that only ever needs one repository should stay in that repository's `.sembleignore`; keep
+the plugin settings free of per-repository rules.
+
+### Several repositories
+
+`repo` accepts a list, so one call can compare a service with the shared library it depends on:
+
+```json
+{ "query": "where is the retry policy applied", "repo": ["D:\\work\\service", "D:\\work\\shared"] }
+```
+
+Git URLs work the same way and are cloned once into the cache. Each repository gets its own index; a
+list costs one first-time index build per repository.
+
+## Commands
+
+MCP exposes `search` and `find_related`; Semble's two reporting subcommands only exist in its CLI. The
+bundle registers `/semble` for them:
+
+| Command | Prints |
+| --- | --- |
+| `/semble savings` | tokens saved by returning snippets instead of whole files, per period and per call type |
+| `/semble file-types` | the extensions Semble indexes, as JSON grouped by content type |
+
+Both run in the host process: nothing is sent to the model, no approval prompt appears, and the output
+is the CLI's own (colour disabled). The same `uvx --from "semble[mcp]" semble` installation is used, so
+`/semble` works exactly where the MCP server works.
+
+`savings` reads the cache that the MCP server wrote, so it only counts searches made against the same
+`SEMBLE_CACHE_LOCATION`. To see a summary of everything, and for maintenance, stay in a terminal:
+
+```sh
+uvx --from "semble[mcp]" semble savings        # same report, from a shell
+uvx --from "semble[mcp]" semble clear          # drop caches
+uvx --from "semble[mcp]" semble clear index    # force a rebuild
+```
+
+`/semble` is deliberately not a search shortcut — that is what the MCP tools are for — and it has no
+destructive subcommands, because a slash command cannot ask for confirmation. Type `/semble` alone for
+the usage line.
 
 ## Platform notes
 
@@ -144,8 +219,13 @@ DSH loads skills lazily:
 | Model calls `skill` | the full `skills/semble/SKILL.md` body | ~2 KB, only when used |
 | You type `/semble-code-search` | same body, injected into that step | manual |
 
+`/semble-code-search` loads *instructions*: the search itself still runs through the MCP tools. The
+real executable command is `/semble` (see [Commands](#commands)), which runs a CLI report in the host
+and costs no model tokens.
+
 The body never enters the system prompt. To keep the tools and drop the skill, delete the
-`ctx.skills.register(...)` call in `lib/index.js`.
+`ctx.skills.register(...)` block in `lib/index.js`; `/semble` keeps working because it is registered
+separately.
 
 ## How it works
 
@@ -167,11 +247,11 @@ the CLI surface would need an edit here.
 Re-run the install with a newer version, or press 更新 in settings:
 
 ```sh
-dsh plugin --profile web add dsh-semble@2.0.0
+dsh plugin --profile web add dsh-semble@2.1.0
 ```
 
 Source installs re-run with the new ref, e.g.
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.0.0`.
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.1.0`.
 
 ## Uninstall
 
@@ -195,6 +275,10 @@ The cached index and the HuggingFace model stay on disk and are reused after a r
 | Tools work, row reads 未加载 | `cordis.patch.yml` lost the anchor row | reinstall this version or newer |
 | `mcp__semble__*` never appears | `uvx` missing, or the first download failed | run `uvx --from "semble[mcp]" semble --version` and read the error |
 | First search takes minutes | one-time model download | wait, or set `HF_ENDPOINT` |
+| First search fails on `toolCallTimeoutMs` | index build + model download outran the limit | raise `toolCallTimeoutMs`, or warm the cache once with a CLI search |
+| Search looks stale after a large refactor | the disk index reuses files it believes unchanged | `uvx --from "semble[mcp]" semble clear index`, then search again |
+| `/semble` answers "Could not start the Semble CLI" | `uvx` is not on the host's PATH | install uv, restart DSH |
+| `savings` counts fewer calls than you made | the report reads the cache of the MCP row's `env`, which `/semble` does not inherit | set `SEMBLE_CACHE_LOCATION` in the host environment as well |
 | `ERR_PNPM_GIT_RESOLVE_FAILED` | no network route to github.com | use a tarball URL or a mirror |
 
 ## Development
@@ -204,8 +288,11 @@ git clone https://github.com/CodeIntegrity/dsh-semble
 dsh plugin --profile web add link:$(pwd)   # then edit and restart DSH
 ```
 
-No build step: `lib/index.js` is plain ESM and `cordis.patch.yml` is read directly. The only runtime
+No build step: `lib/` is plain ESM and `cordis.patch.yml` is read directly. The only runtime
 dependency is `uv`.
+
+`npm test` runs the suite with Node's built-in runner. The spawn tests replace `uvx` with the Node
+binary, so they neither download Semble nor touch your cache.
 
 ## License
 
