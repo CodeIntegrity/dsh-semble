@@ -272,6 +272,25 @@ dsh plugin --profile web add link:$(pwd)   # 之后改代码、重启 DSH
 `npm test` 用 Node 自带的 test runner 跑测试。涉及子进程的用例用 Node 可执行文件代替 `uvx`，
 所以不会下载 Semble，也不会碰你的缓存。
 
+## 发布
+
+发版由 tag 驱动，见 `.github/workflows/publish.yml`：
+
+```sh
+npm version minor          # 改 package.json 并打 vX.Y.Z tag
+git push origin main --follow-tags
+```
+
+工作流会先跑测试，tag 与 `package.json` 不一致时直接失败，版本已在 registry 上则跳过发布，最后带 npm
+provenance 发布。需要配一个仓库 secret：
+
+| Secret | 内容 |
+| --- | --- |
+| `NPM_TOKEN` | npm 细粒度访问令牌，对 `dsh-semble` 有读写权限，并为自动化开启 2FA bypass |
+
+provenance 要求仓库公开；私有仓库请在发布步骤去掉 `--provenance`。手动触发（`workflow_dispatch`）
+默认发布当前 `package.json` 版本；勾上 *dry_run* 只跑 `npm pack --dry-run`。
+
 ## 许可
 
 MIT

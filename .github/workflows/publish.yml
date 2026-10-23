@@ -1,0 +1,100 @@
+name: Publish to npm
+
+# Releases are driven by version tags:
+#
+#   npm version minor
+#   git push origin main --follow-tags
+#
+# The tag must match package.json, and a version that is already on the
+# registry ends the run without a failure, so re-running a tag is harmless.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Read package metadata
+        id: pkg
+        run: |
+          set -eu
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Already published?
+        id: exists
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -eu
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::$NAME@$VERSION is already on the registry, skipping publish"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack (dry run)
+        if: ${{ inputs.dry_run == true }}
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: ${{ steps.exists.outputs.skip != 'true' && inputs.dry_run != true }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Provenance needs a public repository. On a private one, drop
+        # `--provenance` (and the id-token permission above).
+        run: npm publish --provenance --access public
+
+      - name: Summarize
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+          SKIPPED: ${{ steps.exists.outputs.skip }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "### Dry run: $NAME@$VERSION packed, not published" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SKIPPED" = "true" ]; then
+            echo "### $NAME@$VERSION was already published" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Published $NAME@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          fi

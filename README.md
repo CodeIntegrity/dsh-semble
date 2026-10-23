@@ -294,6 +294,27 @@ dependency is `uv`.
 `npm test` runs the suite with Node's built-in runner. The spawn tests replace `uvx` with the Node
 binary, so they neither download Semble nor touch your cache.
 
+## Publishing
+
+Releases are tag-driven by `.github/workflows/publish.yml`:
+
+```sh
+npm version minor          # bumps package.json and creates the vX.Y.Z tag
+git push origin main --follow-tags
+```
+
+The workflow runs the tests, refuses to continue when the tag and `package.json` disagree, skips a
+version that is already on the registry, and publishes with npm provenance. It needs one repository
+secret:
+
+| Secret | What it is |
+| --- | --- |
+| `NPM_TOKEN` | an npm granular access token with read/write access to `dsh-semble` and 2FA bypass enabled for automation |
+
+Provenance requires a public repository; on a private one, drop `--provenance` from the publish step.
+A manual run of the workflow (`workflow_dispatch`) defaults to publishing the current `package.json`
+version; tick *dry_run* to only run `npm pack --dry-run`.
+
 ## License
 
 MIT
