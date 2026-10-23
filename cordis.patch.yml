@@ -21,3 +21,8 @@
           - 'semble[mcp]'
           - semble
         failOnStartupError: true
+        env:
+          # huggingface.co is unreachable on restricted networks; the first model
+          # download (minishlab/potion-code-16M-v2) needs a reachable endpoint.
+          # Remove or override in settings if direct access is available.
+          HF_ENDPOINT: https://hf-mirror.com

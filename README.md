@@ -26,6 +26,8 @@ all upstream updates (bugfixes, new tools) flow through automatically.
 - [uv](https://docs.astral.sh/uv/) on PATH (`uvx` is used to bootstrap Semble).
 - First start downloads the package from PyPI and the embedding model from
   HuggingFace (~1-2 min, one-time; offline afterwards).
+- On networks where huggingface.co is unreachable, the bundle sets
+  `HF_ENDPOINT=https://hf-mirror.com` for the server process; adjust in settings if needed.
 
 ## Configuration
 
@@ -33,7 +35,8 @@ Edit the `semble-mcp` row in the DSH plugin settings page:
 
 - **Content types**: append `--content all` (or `docs` / `config`) to `args` to change what gets indexed.
 - **Pin a version**: change `--from "semble[mcp]"` to `--from "semble[mcp]==X.Y.Z"` for stability.
-- **Environment**: add `env` entries such as `SEMBLE_MODEL_NAME` (custom model path), `SEMBLE_MAX_FILE_BYTES`,
+- **Environment**: the bundle sets `HF_ENDPOINT=https://hf-mirror.com` (see Requirements).
+  Add more `env` entries such as `SEMBLE_MODEL_NAME` (custom model path), `SEMBLE_MAX_FILE_BYTES`,
   `SEMBLE_INDEX_WORKERS`, `SEMBLE_CACHE_LOCATION`.
 
 Config changes restart the connection; disk index caches survive.
