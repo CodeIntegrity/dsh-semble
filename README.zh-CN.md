@@ -1,5 +1,7 @@
 # dsh-semble
 
+[![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
+
 > 给 DeepSeek Harness 的语义代码检索。
 >
 > 你只需要问「这东西在哪」，不必先想起它叫什么——agent 自己找到文件、读它、再改。
@@ -43,21 +45,31 @@
 **设置 → 插件 → 安装**，粘贴：
 
 ```
-github:CodeIntegrity/dsh-semble
+dsh-semble
 ```
 
-想钉住版本而不是跟 `main`，加 `#v1.1.2`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
+钉住版本写 `dsh-semble@2.0.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
 因为这个 profile 的 `node_modules` 与 lockfile 由 Electron 应用独占。
 
 ### 命令行
 
 ```sh
-dsh plugin --profile web add github:CodeIntegrity/dsh-semble
+dsh plugin --profile web add dsh-semble
 ```
 
 该子命令在 profile 目录里跑 `pnpm add`，随后 reconcile `dsh.profile.bundles`，所以下次启动即挂载。
-支持 `github:owner/repo`、`git+https://…`、`https://github.com/owner/repo` 和 `.tgz` 链接。
-需要 PATH 上有 `git`；没有构建步骤，pnpm 不需要 `allowBuilds` 例外。
+没有构建步骤，pnpm 不需要 `allowBuilds` 例外。
+
+### 从源码安装
+
+要跟 `main`、装某个 fork 或装还没发版的提交，走仓库安装：
+
+```sh
+dsh plugin --profile web add github:CodeIntegrity/dsh-semble
+```
+
+支持 `github:owner/repo`、`git+https://…`、`https://github.com/owner/repo` 和 `.tgz` 链接；
+这些需要 PATH 上有 `git`。
 
 ### 本地目录
 
@@ -140,19 +152,25 @@ Semble 本体**不做 vendored 内嵌**。插件只声明如何从 PyPI 拉起�
 
 ## 更新
 
-用更新的 ref 重跑安装，或在设置页点「更新」：
+用更新的版本重跑安装，或在设置页点「更新」：
 
 ```sh
-dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.2
+dsh plugin --profile web add dsh-semble@2.0.0
 ```
+
+源码安装则换 ref 重跑，例如
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.0.0`。
 
 ## 卸载
 
 **设置 → 插件 → 卸载**，或：
 
 ```sh
-dsh plugin --profile web remove @local/semble-mcp
+dsh plugin --profile web remove dsh-semble
 ```
+
+装过 1.x 源码版的话，先按旧名卸载：`dsh plugin --profile web remove @local/semble-mcp`。
+2.0.0 起改了包名，而锚点行只认包名为 `dsh-semble` 的安装。
 
 已缓存的索引与 HuggingFace 模型留在磁盘上，重装可复用。
 

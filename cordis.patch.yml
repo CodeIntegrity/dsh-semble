@@ -23,7 +23,7 @@
     # loads under @deepseek-ai/dsh-mcp-client — without this anchor the bundle would
     # report 未加载 / 待重启 while its tools are actually registered and working.
     - id: semble-mcp-anchor
-      name: '@local/semble-mcp'
+      name: 'dsh-semble'
 
     - id: semble-mcp
       name: '@deepseek-ai/dsh-mcp-client'

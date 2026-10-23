@@ -1,5 +1,7 @@
 # dsh-semble
 
+[![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
+
 > Semantic code search for DeepSeek Harness.
 >
 > Ask **where** something lives instead of recalling **what** it is called, and the agent finds the
@@ -49,23 +51,32 @@ than "the best answer".
 **Settings → Plugins → Install**, and paste:
 
 ```
-github:CodeIntegrity/dsh-semble
+dsh-semble
 ```
 
-Pin a release instead of tracking `main` with `#v1.1.2`. The settings page is the only supported
-route for the `desktop` profile — the CLI refuses it because the Electron app owns that profile's
-`node_modules` and lockfile.
+Pin a version with `dsh-semble@2.0.0`. The settings page is the only supported route for the
+`desktop` profile — the CLI refuses it because the Electron app owns that profile's `node_modules`
+and lockfile.
 
 ### CLI
+
+```sh
+dsh plugin --profile web add dsh-semble
+```
+
+The subcommand runs `pnpm add` inside the profile and reconciles `dsh.profile.bundles`, so the bundle
+mounts on the next start. There is no build step, so pnpm needs no `allowBuilds` exemption.
+
+### From source
+
+To track `main`, a fork, or an unreleased commit, install from the repository instead:
 
 ```sh
 dsh plugin --profile web add github:CodeIntegrity/dsh-semble
 ```
 
-The subcommand runs `pnpm add` inside the profile and reconciles `dsh.profile.bundles`, so the bundle
-mounts on the next start. `github:owner/repo`, `git+https://…`, `https://github.com/owner/repo` and
-`.tgz` URLs are accepted. Requires `git` on PATH; there is no build step, so pnpm needs no
-`allowBuilds` exemption.
+`github:owner/repo`, `git+https://…`, `https://github.com/owner/repo` and `.tgz` URLs are accepted;
+these need `git` on PATH.
 
 ### Local checkout
 
@@ -153,19 +164,26 @@ the CLI surface would need an edit here.
 
 ## Update
 
-Re-run the install with a newer ref, or press 更新 in settings:
+Re-run the install with a newer version, or press 更新 in settings:
 
 ```sh
-dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.2
+dsh plugin --profile web add dsh-semble@2.0.0
 ```
+
+Source installs re-run with the new ref, e.g.
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.0.0`.
 
 ## Uninstall
 
 **Settings → Plugins → 卸载**, or:
 
 ```sh
-dsh plugin --profile web remove @local/semble-mcp
+dsh plugin --profile web remove dsh-semble
 ```
+
+Installed the 1.x source build? Remove it by its old name first:
+`dsh plugin --profile web remove @local/semble-mcp`. The package was renamed in 2.0.0, and the anchor
+row only matches an install whose package name is `dsh-semble`.
 
 The cached index and the HuggingFace model stay on disk and are reused after a reinstall.
 
