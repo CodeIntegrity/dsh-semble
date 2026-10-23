@@ -27,10 +27,43 @@ Semble 本身**不做 vendored 内嵌**：插件只声明如何从 PyPI 启动�
 
 ## 前置要求
 
-- [uv](https://docs.astral.sh/uv/) 在 PATH 上（`uvx` 负责引导 Semble）。
+- [uv](https://docs.astral.sh/uv/) 在 PATH 上（`uvx` 负责引导 Semble）。按平台安装：
+
+  ```powershell
+  # Windows
+  winget install astral-sh.uv
+  ```
+
+  ```sh
+  # macOS
+  brew install uv
+  # macOS / Linux
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
 - 首次启动会从 PyPI 下载包、从 HuggingFace 下载嵌入模型（约 1-2 分钟，一次性；之后离线可用）。
-- 在 huggingface.co 不可达的网络环境下，bundle 会为 server 进程设置
-  `HF_ENDPOINT=https://hf-mirror.com`；如有需要可在设置中调整。
+- huggingface.co 不可达时，在插件设置里加 `HF_ENDPOINT`——出厂默认**不写任何 endpoint**，
+  下载走官方地址：
+
+  ```yaml
+  env:
+    HF_ENDPOINT: https://hf-mirror.com
+  ```
+
+## 平台差异
+
+bundle **不含任何 OS 专属路径、也不含区域专属 endpoint**，所以同一份安装在 Windows、macOS、
+Linux 上都能直接用。真正需要按实际情况调整的是这些：
+
+| 关注点 | Windows | macOS / Linux |
+| --- | --- | --- |
+| 可执行文件 | `uvx` 解析到 `uvx.exe`（uv 提供的是真二进制） | PATH 上的 `uvx` |
+| 仓库路径（`repo`、`link:`） | `D:\work\repo` | `/home/me/repo` |
+| profile 目录 | `C:\Users\<你>\.dsh` | `~/.dsh` |
+| 命中路径的分隔符 | 返回的 `file_path` 用 `\` | POSIX `/` |
+
+如果 `uv` 是通过 shell 包装装的（只有 `uvx.cmd`），注意 stdio 启动不经过 shell，需要在设置里把
+`command` 明确指向 `uvx.exe`。
 
 ## 配置
 
@@ -38,9 +71,10 @@ Semble 本身**不做 vendored 内嵌**：插件只声明如何从 PyPI 启动�
 
 - **内容类型**：在 `args` 末尾追加 `--content all`（或 `docs` / `config`）改变索引范围。
 - **固定版本**：把 `--from "semble[mcp]"` 改成 `--from "semble[mcp]==X.Y.Z"` 以提升稳定性。
-- **环境变量**：bundle 默认设置了 `HF_ENDPOINT=https://hf-mirror.com`（见前置要求）。
-  可按需增加 `env` 条目，例如 `SEMBLE_MODEL_NAME`（自定义模型路径）、`SEMBLE_MAX_FILE_BYTES`、
-  `SEMBLE_INDEX_WORKERS`、`SEMBLE_CACHE_LOCATION`。
+- **环境变量**：默认不设任何 `env`。可按需增加 `HF_ENDPOINT`（见「平台差异」）、
+  `SEMBLE_MODEL_NAME`（自定义模型路径）、`SEMBLE_MAX_FILE_BYTES`、`SEMBLE_INDEX_WORKERS`、
+  `SEMBLE_CACHE_LOCATION`。
+- **工作目录**：不设 `cwd`，server 继承宿主工作目录；每次调用传的 `repo` 应是宿主习惯的绝对路径。
 
 配置变更会重启连接；磁盘索引缓存不受影响。
 
@@ -78,10 +112,11 @@ dsh plugin --profile web add github:CodeIntegrity/dsh-semble
 
 ### 本地目录（开发用）
 
-让 profile 指向当前目录而不是 git ref：
+让 profile 指向当前目录而不是 git ref（用宿主自己的路径写法）：
 
 ```
-dsh plugin --profile web add link:/绝对路径/dsh-semble
+dsh plugin --profile web add link:/绝对路径/dsh-semble   # macOS / Linux
+dsh plugin --profile web add link:D:\path\to\dsh-semble  # Windows
 ```
 
 或在打开本工作区的 DSH 会话里执行：
@@ -89,6 +124,8 @@ dsh plugin --profile web add link:/绝对路径/dsh-semble
 ```
 plugin_manager action=install_bundle target=D:\Workspace\dsh-semble
 ```
+
+（`target` 两种写法都接受，上面是 Windows 写法。）
 
 `link:` 形式让 profile 始终指向你的工作副本，改完 `cordis.patch.yml` 下次启动即生效，无需重装。
 

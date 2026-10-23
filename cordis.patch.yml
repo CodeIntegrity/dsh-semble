@@ -6,6 +6,13 @@
 # the package from PyPI, so upstream releases (bugfixes, new MCP tools) are picked
 # up automatically on the next server start.
 #
+# Platform policy: this file deliberately contains no OS-specific path and no
+# region-specific endpoint. `command: uvx` is a real executable on every platform
+# uv supports (uvx.exe on Windows, uvx on macOS/Linux), resolved through PATH, so
+# the same row works unchanged everywhere. Everything an operator may need to
+# adapt — repository paths, proxies, mirrors — belongs in the plugin settings,
+# not in the shipped default.
+#
 # Version policy: floating spec `semble[mcp]` follows the latest release.
 # To pin a specific version for stability, edit this row in the DSH plugin
 # settings and change the spec to `semble[mcp]==X.Y.Z`.
@@ -29,8 +36,13 @@
           - 'semble[mcp]'
           - semble
         failOnStartupError: true
-        env:
-          # huggingface.co is unreachable on restricted networks; the first model
-          # download (minishlab/potion-code-16M-v2) needs a reachable endpoint.
-          # Remove or override in settings if direct access is available.
-          HF_ENDPOINT: https://hf-mirror.com
+        # No `env` defaults on purpose: the embedding model
+        # (minishlab/potion-code-16M-v2) is fetched from huggingface.co unless the
+        # operator asks otherwise. On networks where huggingface.co is unreachable,
+        # add the following in the plugin settings rather than here:
+        #
+        #   HF_ENDPOINT: https://hf-mirror.com
+        #
+        # `cwd` is intentionally unset too: the server inherits the host working
+        # directory, and per-call `repo` values should be absolute paths in the
+        # host's own convention (C:\... on Windows, /... on macOS/Linux).

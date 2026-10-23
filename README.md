@@ -28,11 +28,45 @@ all upstream updates (bugfixes, new tools) flow through automatically.
 
 ## Requirements
 
-- [uv](https://docs.astral.sh/uv/) on PATH (`uvx` is used to bootstrap Semble).
-- First start downloads the package from PyPI and the embedding model from
-  HuggingFace (~1-2 min, one-time; offline afterwards).
-- On networks where huggingface.co is unreachable, the bundle sets
-  `HF_ENDPOINT=https://hf-mirror.com` for the server process; adjust in settings if needed.
+- [uv](https://docs.astral.sh/uv/) on PATH (`uvx` bootstraps Semble). Install it per platform:
+
+  ```powershell
+  # Windows
+  winget install astral-sh.uv
+  ```
+
+  ```sh
+  # macOS
+  brew install uv
+  # macOS / Linux
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+
+- First start downloads the package from PyPI and the embedding model from HuggingFace (~1-2 min,
+  one-time; offline afterwards).
+- On networks where huggingface.co is unreachable, add `HF_ENDPOINT` in the plugin settings —
+  the shipped default deliberately sets no endpoint, so downloads come from the official host:
+
+  ```yaml
+  env:
+    HF_ENDPOINT: https://hf-mirror.com
+  ```
+
+## Platform notes
+
+The bundle ships **no OS-specific path and no region-specific endpoint**, so the same installation
+works on Windows, macOS and Linux. What does differ, and what operators have to adapt:
+
+| Concern | Windows | macOS / Linux |
+| --- | --- | --- |
+| Executable | `uvx` resolves to `uvx.exe` (uv ships real binaries) | `uvx` on PATH |
+| Repository paths (`repo`, `link:`) | `D:\work\repo` | `/home/me/repo` |
+| Profile home | `C:\Users\<you>\.dsh` | `~/.dsh` |
+| Line endings in hits | returned `file_path` keeps `\` separators | POSIX `/` |
+
+If `uv` was installed through a shell shim rather than the official installer, `uvx` may exist only
+as `uvx.cmd`; stdio spawning does not go through a shell, so point `command` at `uvx.exe`
+explicitly in the settings.
 
 ## Configuration
 
@@ -40,9 +74,12 @@ Edit the `semble-mcp` row in the DSH plugin settings page:
 
 - **Content types**: append `--content all` (or `docs` / `config`) to `args` to change what gets indexed.
 - **Pin a version**: change `--from "semble[mcp]"` to `--from "semble[mcp]==X.Y.Z"` for stability.
-- **Environment**: the bundle sets `HF_ENDPOINT=https://hf-mirror.com` (see Requirements).
-  Add more `env` entries such as `SEMBLE_MODEL_NAME` (custom model path), `SEMBLE_MAX_FILE_BYTES`,
+- **Environment**: no `env` is set by default. Add entries such as `HF_ENDPOINT`
+  (see Platform notes), `SEMBLE_MODEL_NAME` (custom model path), `SEMBLE_MAX_FILE_BYTES`,
   `SEMBLE_INDEX_WORKERS`, `SEMBLE_CACHE_LOCATION`.
+- **Working directory**: `cwd` is unset, so the server inherits the host working directory; per-call
+  `repo` values should be absolute paths in the host's own convention.
+
 
 Config changes restart the connection; disk index caches survive.
 
@@ -80,10 +117,11 @@ The subcommand forwards to `pnpm add` inside the profile directory, then reconci
 
 ### Local checkout (development)
 
-Point the profile at this directory instead of a git ref:
+Point the profile at this directory instead of a git ref (use the host's own path form):
 
 ```
-dsh plugin --profile web add link:/absolute/path/to/dsh-semble
+dsh plugin --profile web add link:/absolute/path/to/dsh-semble   # macOS / Linux
+dsh plugin --profile web add link:D:\path\to\dsh-semble          # Windows
 ```
 
 or, from a DSH session opened in this workspace:
@@ -91,6 +129,8 @@ or, from a DSH session opened in this workspace:
 ```
 plugin_manager action=install_bundle target=D:\Workspace\dsh-semble
 ```
+
+(`target` takes either form; the example above is the Windows spelling.)
 
 The `link:` form keeps the profile pointing at your working copy, so edits to
 `cordis.patch.yml` take effect on the next host start without reinstalling.

@@ -32,7 +32,8 @@ The query is matched against embedded function bodies, so phrase it as behaviour
 Controls, all on both tools unless noted:
 
 - `repo` — **required**. The absolute path of the repository, or an `https://` URL of a git remote.
-  In a session this is normally the session working directory. Pass a list to search several
+  In a session this is normally the session working directory, written the way the host writes paths
+  (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search several
   repositories at once. Omitting it fails validation, so always send it.
 - `top_k` — default 5; raise it to 10–20 when the first pass misses.
 - `max_snippet_lines` — default 10; use `0` for locations only, or omit a cap to see a whole chunk.
@@ -42,8 +43,9 @@ Controls, all on both tools unless noted:
 
 1. `search` with a behaviour phrase, always passing `repo`.
 2. Open the top hit with the `read` tool, using its `start_line` as `offset`, to confirm it is the
-   right code and not a similarity artifact. On Windows the returned path keeps `\` separators;
-   pass it through unchanged rather than hand-editing it.
+   right code and not a similarity artifact. Pass the returned path through exactly as given — it
+   keeps `\` separators on Windows and is already POSIX on macOS/Linux. Rewriting separators by hand
+   is where these paths break.
 3. `find_related` on that location when you need callers, siblings, or tests.
 4. Only then edit.
 
