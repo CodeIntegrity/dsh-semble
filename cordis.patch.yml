@@ -1,0 +1,23 @@
+# Semble MCP bridge for DeepSeek Harness.
+#
+# Inserts the official @deepseek-ai/dsh-mcp-client row configured to start the
+# Semble MCP server (PyPI project `semble`, MIT, https://github.com/MinishLab/semble)
+# over stdio. No semble source code is vendored here: `uvx` resolves and installs
+# the package from PyPI, so upstream releases (bugfixes, new MCP tools) are picked
+# up automatically on the next server start.
+#
+# Version policy: floating spec `semble[mcp]` follows the latest release.
+# To pin a specific version for stability, edit this row in the DSH plugin
+# settings and change the spec to `semble[mcp]==X.Y.Z`.
+- insert:
+    - id: semble-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: semble
+        transport: stdio
+        command: uvx
+        args:
+          - --from
+          - 'semble[mcp]'
+          - semble
+        failOnStartupError: true
