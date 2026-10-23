@@ -1,203 +1,194 @@
 # dsh-semble
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that exposes
-[Semble](https://github.com/MinishLab/semble) (agent code search) to every DSH session as native
-MCP tools.
+> Semantic code search for DeepSeek Harness.
+>
+> Ask **where** something lives instead of recalling **what** it is called, and the agent finds the
+> file, reads it, then edits.
 
 English | [简体中文](README.zh-CN.md)
 
-## What it does
+`dsh-semble` brings [Semble](https://github.com/MinishLab/semble)'s code index into every DSH
+session as two native MCP tools. `grep` needs a string you already know; this needs a description of
+behaviour — "where is the retry policy applied when a request fails", "which module decides the
+scoring weights". That is usually the moment an agent starts guessing file names.
 
-Installs two loader rows: a no-op anchor loaded under this package's own name, plus one MCP
-connection row (`@deepseek-ai/dsh-mcp-client`) configured to start the official Semble MCP server
-over stdio. The anchor exists because DSH decides "loaded" by matching loader entry names against
-the installed package name — without it the plugin is reported as 未加载 / 待重启 in the settings
-dialog even while its tools work. It registers no tools, services or events.
+Nothing to learn beyond that: after installation the tools sit next to `read` and `grep`, and the
+agent decides when the index is worth a call.
 
-```
-uvx --from "semble[mcp]" semble
-```
+## What you get
 
-The agent then gets two tools:
-
-- `mcp__semble__search` — semantic + lexical code search over a repo path or git URL.
-- `mcp__semble__find_related` — find chunks similar to a known file/line.
-
-Semble itself is **not vendored**: the plugin only declares how to launch it from PyPI, so nearly
-all upstream updates (bugfixes, new tools) flow through automatically.
-
-## Requirements
-
-- [uv](https://docs.astral.sh/uv/) on PATH (`uvx` bootstraps Semble). Install it per platform:
-
-  ```powershell
-  # Windows
-  winget install astral-sh.uv
-  ```
-
-  ```sh
-  # macOS
-  brew install uv
-  # macOS / Linux
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-
-- First start downloads the package from PyPI and the embedding model from HuggingFace (~1-2 min,
-  one-time; offline afterwards).
-- On networks where huggingface.co is unreachable, add `HF_ENDPOINT` in the plugin settings —
-  the shipped default deliberately sets no endpoint, so downloads come from the official host:
-
-  ```yaml
-  env:
-    HF_ENDPOINT: https://hf-mirror.com
-  ```
-
-## Platform notes
-
-The bundle ships **no OS-specific path and no region-specific endpoint**, so the same installation
-works on Windows, macOS and Linux. What does differ, and what operators have to adapt:
-
-| Concern | Windows | macOS / Linux |
+| Tool | Hand it | Back comes |
 | --- | --- | --- |
-| Executable | `uvx` resolves to `uvx.exe` (uv ships real binaries) | `uvx` on PATH |
-| Repository paths (`repo`, `link:`) | `D:\work\repo` | `/home/me/repo` |
-| Profile home | `C:\Users\<you>\.dsh` | `~/.dsh` |
-| Line endings in hits | returned `file_path` keeps `\` separators | POSIX `/` |
+| `mcp__semble__search` | a sentence describing the code or where it lives | ranked `file:line` hits with snippets |
+| `mcp__semble__find_related` | one location you already know | its neighbours: other implementations, callers, tests |
 
-If `uv` was installed through a shell shim rather than the official installer, `uvx` may exist only
-as `uvx.cmd`; stdio spawning does not go through a shell, so point `command` at `uvx.exe`
-explicitly in the settings.
+A typical exchange:
 
-## Configuration
+> **You:** Where does DSH decide that a plugin is "loaded"?
+>
+> **Agent:** calls `search`, gets a hit in the plugin inventory, opens it with `read`, finds
+> `isEntryLoaded` comparing loader entry names against the package name, and answers from the source
+> rather than from a guess.
 
-Edit the `semble-mcp` row in the DSH plugin settings page:
+## Using the tools
 
-- **Content types**: append `--content all` (or `docs` / `config`) to `args` to change what gets indexed.
-- **Pin a version**: change `--from "semble[mcp]"` to `--from "semble[mcp]==X.Y.Z"` for stability.
-- **Environment**: no `env` is set by default. Add entries such as `HF_ENDPOINT`
-  (see Platform notes), `SEMBLE_MODEL_NAME` (custom model path), `SEMBLE_MAX_FILE_BYTES`,
-  `SEMBLE_INDEX_WORKERS`, `SEMBLE_CACHE_LOCATION`.
-- **Working directory**: `cwd` is unset, so the server inherits the host working directory; per-call
-  `repo` values should be absolute paths in the host's own convention.
+- `repo` — **required**. Absolute path of the repository, or an `https://` git URL. A list searches
+  several repositories at once.
+- `top_k` — default 5. Raise to 10–20 when the first pass misses.
+- `max_snippet_lines` — default 10; `0` returns locations only.
+- `content` — `code` (default), `docs`, `config`, or `all`.
 
-
-Config changes restart the connection; disk index caches survive.
+The first query against a repository builds its index (slow, one-time); later queries reuse it.
+Hits are ranked by similarity, so a score near `0.0x` usually means "nothing relevant here" rather
+than "the best answer".
 
 ## Install
 
-The plugin is a pure bundle: installing it means adding the package to a DSH profile, which makes
-DSH load `cordis.patch.yml` and mount the MCP connection. Pick the route that matches your setup.
+### Desktop app
 
-### Desktop app (Settings → Plugins → Install)
-
-Paste the repository spec into the install box:
+**Settings → Plugins → Install**, and paste:
 
 ```
 github:CodeIntegrity/dsh-semble
 ```
 
-To pin a release instead of tracking `main`:
+Pin a release instead of tracking `main` with `#v1.1.2`. The settings page is the only supported
+route for the `desktop` profile — the CLI refuses it because the Electron app owns that profile's
+`node_modules` and lockfile.
 
-```
-github:CodeIntegrity/dsh-semble#v1.0.0
-```
+### CLI
 
-The settings page is the only supported route for the `desktop` profile — the CLI refuses it
-because the Electron app owns that profile's `node_modules` and lockfile.
-
-### CLI (any non-desktop profile: `web`, `tui`, …)
-
-```
+```sh
 dsh plugin --profile web add github:CodeIntegrity/dsh-semble
 ```
 
-The subcommand forwards to `pnpm add` inside the profile directory, then reconciles
-`dsh.profile.bundles`, so the bundle is mounted on the next start. `github:owner/repo`,
-`git+https://…`, `https://github.com/owner/repo` and `.tgz` URLs are all accepted.
+The subcommand runs `pnpm add` inside the profile and reconciles `dsh.profile.bundles`, so the bundle
+mounts on the next start. `github:owner/repo`, `git+https://…`, `https://github.com/owner/repo` and
+`.tgz` URLs are accepted. Requires `git` on PATH; there is no build step, so pnpm needs no
+`allowBuilds` exemption.
 
-### Local checkout (development)
+### Local checkout
 
-Point the profile at this directory instead of a git ref (use the host's own path form):
-
-```
+```sh
 dsh plugin --profile web add link:/absolute/path/to/dsh-semble   # macOS / Linux
 dsh plugin --profile web add link:D:\path\to\dsh-semble          # Windows
 ```
 
-or, from a DSH session opened in this workspace:
+The profile then points at your working copy, so edits to `cordis.patch.yml` apply on the next start
+without reinstalling.
 
+### Prerequisites
+
+[uv](https://docs.astral.sh/uv/) must be on PATH — `uvx` launches Semble from PyPI:
+
+```powershell
+winget install astral-sh.uv                      # Windows
 ```
-plugin_manager action=install_bundle target=D:\Workspace\dsh-semble
+
+```sh
+brew install uv                                  # macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS / Linux
 ```
 
-(`target` takes either form; the example above is the Windows spelling.)
+First start downloads the package and the embedding model (~1–2 min, one-time, offline afterwards).
+Restart DSH once after installing; until then the settings row may read 待重启.
 
-The `link:` form keeps the profile pointing at your working copy, so edits to
-`cordis.patch.yml` take effect on the next host start without reinstalling.
+## Settings
 
-### Requirements for git installs
+Edit the `semble-mcp` row in **Settings → Plugins**:
 
-- `git` on PATH and network access to the repository host.
-- No build step: the package has no `prepare` script, so pnpm needs no `allowBuilds` exemption.
-- `uv` is still required at *runtime* (see Requirements) — installing the plugin does not install it.
+| Field | Default | Why change it |
+| --- | --- | --- |
+| `args` | `--from 'semble[mcp]' semble` | append `--content all` to index docs and config too |
+| `args` (version) | floating | `semble[mcp]==X.Y.Z` pins a release |
+| `env` | empty | `HF_ENDPOINT` on restricted networks, `SEMBLE_CACHE_LOCATION` to move the index |
+| `cwd` | inherited | keep unset; per-call `repo` values should be absolute paths |
+| `command` | `uvx` | point it at `uvx.exe` if only a `.cmd` shim is installed |
 
-Restart DSH after the first install. The settings dialog may say 待重启 until you do; that flag
-lives in host memory and clears on the next start.
+Changing settings restarts the MCP connection; disk index caches survive.
+
+## Platform notes
+
+The bundle ships no OS-specific path and no region-specific endpoint, so one installation serves all
+three platforms. What differs is only what you type:
+
+| Concern | Windows | macOS / Linux |
+| --- | --- | --- |
+| Executable | `uvx.exe`, resolved through PATH | `uvx` |
+| Repository paths | `D:\work\repo` | `/home/me/repo` |
+| Profile home | `C:\Users\<you>\.dsh` | `~/.dsh` |
+| Retrieved paths | keep `\` separators | POSIX `/` |
+
+## Bundled skill
+
+Installation also registers one routing skill, `semble-code-search`. The tools do not advertise
+*when* they are worth calling, and a model that reaches for `grep` first never learns that the index
+existed.
+
+DSH loads skills lazily:
+
+| When | Enters the session | Cost |
+| --- | --- | --- |
+| Before the first request | one catalog entry (name + capped description) | a few hundred bytes per session |
+| Model calls `skill` | the full `skills/semble/SKILL.md` body | ~2 KB, only when used |
+| You type `/semble-code-search` | same body, injected into that step | manual |
+
+The body never enters the system prompt. To keep the tools and drop the skill, delete the
+`ctx.skills.register(...)` call in `lib/index.js`.
+
+## How it works
+
+The bundle inserts two loader rows:
+
+1. `semble-mcp-anchor` — a no-op plugin loaded under this package's own name. DSH decides "loaded"
+   by matching loader entry names against the installed package name, and the MCP client row loads
+   under `@deepseek-ai/dsh-mcp-client`; without the anchor the settings row reads 未加载 / 待重启
+   while the tools work fine.
+2. `semble-mcp` — the official `@deepseek-ai/dsh-mcp-client` row, configured to start
+   `uvx --from "semble[mcp]" semble` over stdio.
+
+Semble itself is **not vendored**. The plugin declares how to launch it from PyPI with a floating
+spec, so upstream bugfixes and new tools arrive on the next server start; only a breaking change to
+the CLI surface would need an edit here.
 
 ## Update
 
-Re-run the install with a newer ref (or press 更新 in the settings page):
+Re-run the install with a newer ref, or press 更新 in settings:
 
+```sh
+dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.2
 ```
-dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.0
-```
-
-For a `link:` install, `git pull` in the checkout and restart DSH. Semble itself is updated
-separately and automatically — see Update policy.
 
 ## Uninstall
 
-Settings → Plugins → 卸载, or:
+**Settings → Plugins → 卸载**, or:
 
-```
+```sh
 dsh plugin --profile web remove @local/semble-mcp
 ```
 
-Removal drops the dependency and the `dsh.profile.bundles` entry; the cached Semble index and the
-HuggingFace model stay on disk and are reused if you reinstall.
+The cached index and the HuggingFace model stay on disk and are reused after a reinstall.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Row says 待重启 after install | The host loaded its layer list before the install | Restart DSH once |
-| Tools work but the row says 未加载 | `cordis.patch.yml` is missing the anchor row (see What it does) | Reinstall this version or newer |
-| `mcp__semble__*` never appears | `uvx` missing, or the first PyPI/model download failed | Run `uvx --from "semble[mcp]" semble --version` by hand and read the error |
-| First search hangs for minutes | Embedding model download (one-time) | Wait, or set `HF_ENDPOINT` to a reachable mirror |
-| `ERR_PNPM_GIT_RESOLVE_FAILED` during install | No network route to github.com | Use a tarball URL or an npm mirror instead |
+| Row reads 待重启 after install | the host loaded its layer list before the install | restart DSH once |
+| Tools work, row reads 未加载 | `cordis.patch.yml` lost the anchor row | reinstall this version or newer |
+| `mcp__semble__*` never appears | `uvx` missing, or the first download failed | run `uvx --from "semble[mcp]" semble --version` and read the error |
+| First search takes minutes | one-time model download | wait, or set `HF_ENDPOINT` |
+| `ERR_PNPM_GIT_RESOLVE_FAILED` | no network route to github.com | use a tarball URL or a mirror |
 
-## The bundled skill
+## Development
 
-Installing the bundle also registers one routing skill, `semble-code-search`. It exists because the
-tools themselves do not advertise *when* they are worth calling: a model that reaches for `grep`
-first never discovers what the index could have done for it.
+```sh
+git clone https://github.com/CodeIntegrity/dsh-semble
+dsh plugin --profile web add link:$(pwd)   # then edit and restart DSH
+```
 
-DSH loads skills lazily, so the cost model is:
+No build step: `lib/index.js` is plain ESM and `cordis.patch.yml` is read directly. The only runtime
+dependency is `uv`.
 
-| At | Enters the session | Size |
-| --- | --- | --- |
-| Before the first request | one catalog entry: name plus a capped description | a few hundred bytes per session |
-| When the model calls `skill` | the full `skills/semble/SKILL.md` body | ~2 KB, only when used |
-| When the user types `/semble-code-search` | the same body, injected into that step | manual |
+## License
 
-The body never enters the system prompt. That is by design: a skill body pinned there is paid for on
-every session whether or not the tools are used.
-
-To drop only the skill and keep the tools, delete the `ctx.skills.register(...)` call in
-`lib/index.js`. The body lives at `skills/semble/SKILL.md` and is also valid as a hand-placed
-`~/.dsh/skills/semble/SKILL.md` if you prefer the filesystem provider.
-
-## Update policy
-
-Default spec is floating (`semble[mcp]`) so releases follow the upstream repository automatically.
-Only breaking changes to the CLI surface (arg/env renames) require editing `cordis.patch.yml` here.
+MIT

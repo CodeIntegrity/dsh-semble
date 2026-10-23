@@ -1,190 +1,180 @@
 # dsh-semble
 
-一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，把
-[Semble](https://github.com/MinishLab/semble)（agent 代码检索）以原生 MCP 工具的形式接入每个
-DSH 会话。
+> 给 DeepSeek Harness 的语义代码检索。
+>
+> 你只需要问「这东西在哪」，不必先想起它叫什么——agent 自己找到文件、读它、再改。
 
 [English](README.md) | 简体中文
 
-## 它做什么
+`dsh-semble` 把 [Semble](https://github.com/MinishLab/semble) 的代码索引接进每个 DSH 会话，
+以两个原生 MCP 工具的形式出现。`grep` 要求你手里已经有一个字符串；它要的是一句行为描述——
+「请求失败时重试策略在哪生效」「哪个模块决定了打分权重」。而这种时刻，agent 通常正好开始猜文件名。
 
-安装两行 loader 条目：一行是挂在插件自己包名下的空壳锚点（anchor），另一行是 MCP 连接行
-（`@deepseek-ai/dsh-mcp-client`），配置为通过 stdio 启动官方的 Semble MCP server。
-锚点存在的原因：DSH 判定「已加载」用的是「loader 条目名 == 已安装包名」，没有它时插件在设置弹窗里
-会显示「未加载 / 待重启」，而工具其实已经在工作。锚点不注册任何工具、服务或事件。
+除此之外没有要学的东西：装好之后两个工具就摆在 `read`、`grep` 旁边，由 agent 决定什么时候值得查一次索引。
 
-```
-uvx --from "semble[mcp]" semble
-```
+## 你会得到什么
 
-agent 由此获得两个工具：
-
-- `mcp__semble__search` — 对仓库路径或 git URL 做语义 + 词法混合代码检索。
-- `mcp__semble__find_related` — 给定已知文件/行号，找出相似的代码块。
-
-Semble 本身**不做 vendored 内嵌**：插件只声明如何从 PyPI 启动它，因此上游几乎所有的更新
-（bugfix、新增工具）都会自动生效。
-
-## 前置要求
-
-- [uv](https://docs.astral.sh/uv/) 在 PATH 上（`uvx` 负责引导 Semble）。按平台安装：
-
-  ```powershell
-  # Windows
-  winget install astral-sh.uv
-  ```
-
-  ```sh
-  # macOS
-  brew install uv
-  # macOS / Linux
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-
-- 首次启动会从 PyPI 下载包、从 HuggingFace 下载嵌入模型（约 1-2 分钟，一次性；之后离线可用）。
-- huggingface.co 不可达时，在插件设置里加 `HF_ENDPOINT`——出厂默认**不写任何 endpoint**，
-  下载走官方地址：
-
-  ```yaml
-  env:
-    HF_ENDPOINT: https://hf-mirror.com
-  ```
-
-## 平台差异
-
-bundle **不含任何 OS 专属路径、也不含区域专属 endpoint**，所以同一份安装在 Windows、macOS、
-Linux 上都能直接用。真正需要按实际情况调整的是这些：
-
-| 关注点 | Windows | macOS / Linux |
+| 工具 | 交给它 | 拿回来 |
 | --- | --- | --- |
-| 可执行文件 | `uvx` 解析到 `uvx.exe`（uv 提供的是真二进制） | PATH 上的 `uvx` |
-| 仓库路径（`repo`、`link:`） | `D:\work\repo` | `/home/me/repo` |
-| profile 目录 | `C:\Users\<你>\.dsh` | `~/.dsh` |
-| 命中路径的分隔符 | 返回的 `file_path` 用 `\` | POSIX `/` |
+| `mcp__semble__search` | 一句话描述代码做什么、或者它在哪儿 | 按相关度排序的 `file:line` 命中 + 片段 |
+| `mcp__semble__find_related` | 一个你已经知道的位置 | 它的邻居：其他实现、调用方、测试 |
 
-如果 `uv` 是通过 shell 包装装的（只有 `uvx.cmd`），注意 stdio 启动不经过 shell，需要在设置里把
-`command` 明确指向 `uvx.exe`。
+一次典型对话：
 
-## 配置
+> **你：** DSH 判断「插件已加载」是在哪儿决定的？
+>
+> **agent：** 调 `search`，拿到插件清单模块的一条命中，用 `read` 打开，找到 `isEntryLoaded`
+> 把 loader 条目名和包名做比对，然后**基于源码**回答，而不是基于猜测。
 
-在 DSH 插件设置页编辑 `semble-mcp` 行：
+## 工具怎么用
 
-- **内容类型**：在 `args` 末尾追加 `--content all`（或 `docs` / `config`）改变索引范围。
-- **固定版本**：把 `--from "semble[mcp]"` 改成 `--from "semble[mcp]==X.Y.Z"` 以提升稳定性。
-- **环境变量**：默认不设任何 `env`。可按需增加 `HF_ENDPOINT`（见「平台差异」）、
-  `SEMBLE_MODEL_NAME`（自定义模型路径）、`SEMBLE_MAX_FILE_BYTES`、`SEMBLE_INDEX_WORKERS`、
-  `SEMBLE_CACHE_LOCATION`。
-- **工作目录**：不设 `cwd`，server 继承宿主工作目录；每次调用传的 `repo` 应是宿主习惯的绝对路径。
+- `repo` —— **必填**。仓库绝对路径，或 `https://` git 地址；传数组可同时检索多个仓库。
+- `top_k` —— 默认 5，首轮没命中时提到 10–20。
+- `max_snippet_lines` —— 默认 10，`0` 只返回位置。
+- `content` —— `code`（默认）、`docs`、`config`、`all`。
 
-配置变更会重启连接；磁盘索引缓存不受影响。
+某个仓库的首次查询要建索引（慢，一次性），之后复用。命中按相似度排序，所以分数接近 `0.0x`
+通常意味着「这儿没有相关内容」，而不是「这是最佳答案」。
 
 ## 安装
 
-插件是纯 bundle：安装它 = 把包加进某个 DSH profile，DSH 随后加载 `cordis.patch.yml` 并挂载 MCP
-连接。按你的环境选一种方式。
+### 桌面端
 
-### 桌面端（设置 → 插件 → 安装）
-
-在安装框里粘贴仓库 spec：
+**设置 → 插件 → 安装**，粘贴：
 
 ```
 github:CodeIntegrity/dsh-semble
 ```
 
-想钉住某个发布版本、不跟 `main`：
+想钉住版本而不是跟 `main`，加 `#v1.1.2`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
+因为这个 profile 的 `node_modules` 与 lockfile 由 Electron 应用独占。
 
-```
-github:CodeIntegrity/dsh-semble#v1.0.0
-```
+### 命令行
 
-`desktop` profile 只支持从设置页安装——CLI 会拒绝，因为这个 profile 的 `node_modules` 与
-lockfile 由 Electron 应用独占管理。
-
-### 命令行（非桌面 profile：`web`、`tui` …）
-
-```
+```sh
 dsh plugin --profile web add github:CodeIntegrity/dsh-semble
 ```
 
-该子命令会把参数转发给 profile 目录里的 `pnpm add`，随后 reconcile `dsh.profile.bundles`，
-所以下次启动就会挂载。支持 `github:owner/repo`、`git+https://…`、`https://github.com/owner/repo`
-以及 `.tgz` 链接。
+该子命令在 profile 目录里跑 `pnpm add`，随后 reconcile `dsh.profile.bundles`，所以下次启动即挂载。
+支持 `github:owner/repo`、`git+https://…`、`https://github.com/owner/repo` 和 `.tgz` 链接。
+需要 PATH 上有 `git`；没有构建步骤，pnpm 不需要 `allowBuilds` 例外。
 
-### 本地目录（开发用）
+### 本地目录
 
-让 profile 指向当前目录而不是 git ref（用宿主自己的路径写法）：
-
-```
+```sh
 dsh plugin --profile web add link:/绝对路径/dsh-semble   # macOS / Linux
 dsh plugin --profile web add link:D:\path\to\dsh-semble  # Windows
 ```
 
-或在打开本工作区的 DSH 会话里执行：
+之后 profile 指向你的工作副本，改完 `cordis.patch.yml` 下次启动即生效，无需重装。
 
+### 前置条件
+
+PATH 上要有 [uv](https://docs.astral.sh/uv/)——`uvx` 负责从 PyPI 拉起 Semble：
+
+```powershell
+winget install astral-sh.uv                      # Windows
 ```
-plugin_manager action=install_bundle target=D:\Workspace\dsh-semble
+
+```sh
+brew install uv                                  # macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS / Linux
 ```
 
-（`target` 两种写法都接受，上面是 Windows 写法。）
+首次启动会下载包与嵌入模型（约 1–2 分钟，一次性，之后离线可用）。装完重启一次 DSH；在那之前设置页那行
+可能显示「待重启」。
 
-`link:` 形式让 profile 始终指向你的工作副本，改完 `cordis.patch.yml` 下次启动即生效，无需重装。
+## 设置
 
-### git 安装的前置条件
+在 **设置 → 插件** 里编辑 `semble-mcp` 行：
 
-- PATH 上有 `git`，且能访问仓库所在主机。
-- 没有构建步骤：本包没有 `prepare` 脚本，pnpm 不需要 `allowBuilds` 白名单。
-- `uv` 仍是**运行时**依赖（见前置要求）——安装插件不会顺带装它。
+| 字段 | 默认值 | 什么时候改 |
+| --- | --- | --- |
+| `args` | `--from 'semble[mcp]' semble` | 追加 `--content all` 让文档和配置也进索引 |
+| `args`（版本） | 浮动 | 改成 `semble[mcp]==X.Y.Z` 钉版本 |
+| `env` | 空 | 受限网络加 `HF_ENDPOINT`；搬索引加 `SEMBLE_CACHE_LOCATION` |
+| `cwd` | 继承 | 保持不设；每次调用的 `repo` 用绝对路径 |
+| `command` | `uvx` | 如果只装了 `.cmd` 包装，改指向 `uvx.exe` |
 
-首次安装后重启 DSH。重启前设置弹窗可能显示「待重启」：该标记只存在于宿主内存，下次启动即清空。
+改设置会重启 MCP 连接；磁盘上的索引缓存不受影响。
+
+## 平台差异
+
+bundle 不含任何 OS 专属路径、也不含区域专属 endpoint，一份安装三平台通用。真正不同的只有你敲进去的东西：
+
+| 关注点 | Windows | macOS / Linux |
+| --- | --- | --- |
+| 可执行文件 | `uvx.exe`，经 PATH 解析 | `uvx` |
+| 仓库路径 | `D:\work\repo` | `/home/me/repo` |
+| profile 目录 | `C:\Users\<你>\.dsh` | `~/.dsh` |
+| 命中路径分隔符 | 保留 `\` | POSIX `/` |
+
+## 内置 skill
+
+安装同时注册一个路由 skill：`semble-code-search`。工具本身不会说明「什么时候值得用」，而先摸
+`grep` 的模型永远不会发现索引的存在。
+
+DSH 的 skill 惰性加载：
+
+| 时机 | 进入会话的内容 | 成本 |
+| --- | --- | --- |
+| 首次请求前 | 一条目录条目（名称 + 截断描述） | 每会话几百字节 |
+| 模型调 `skill` | 完整 `skills/semble/SKILL.md` 正文 | 约 2 KB，只在实际用到时 |
+| 你输入 `/semble-code-search` | 同一份正文，注入当步 | 手动 |
+
+正文不进系统提示词。只想保留工具、不要 skill，删掉 `lib/index.js` 里的 `ctx.skills.register(...)`
+调用即可。
+
+## 工作原理
+
+bundle 插入两行 loader：
+
+1. `semble-mcp-anchor` —— 以本包名加载的空插件。DSH 判断「已加载」是拿 loader 条目名和已安装包名做匹配，
+   而 MCP 客户端那行是以 `@deepseek-ai/dsh-mcp-client` 加载的；没有这个锚点，明明工具能用，设置页却显示
+   未加载 / 待重启。
+2. `semble-mcp` —— 官方 `@deepseek-ai/dsh-mcp-client` 行，配置为通过 stdio 启动
+   `uvx --from "semble[mcp]" semble`。
+
+Semble 本体**不做 vendored 内嵌**。插件只声明如何从 PyPI 拉起它，且用浮动版本号，所以上游的 bugfix
+与新工具在下次 server 启动时生效；只有 CLI 表面发生破坏性变更时才需要改这里。
 
 ## 更新
 
-用更新的 ref 重跑一次安装（或在设置页点「更新」）：
+用更新的 ref 重跑安装，或在设置页点「更新」：
 
+```sh
+dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.2
 ```
-dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.0
-```
-
-`link:` 安装则 `git pull` 后重启 DSH。Semble 自身的更新是另一条路径，且自动跟随——见更新策略。
 
 ## 卸载
 
-设置 → 插件 → 卸载，或：
+**设置 → 插件 → 卸载**，或：
 
-```
+```sh
 dsh plugin --profile web remove @local/semble-mcp
 ```
 
-卸载会同时移除依赖与 `dsh.profile.bundles` 条目；已缓存的 Semble 索引与 HuggingFace 模型留在磁盘上，
-重装可复用。
+已缓存的索引与 HuggingFace 模型留在磁盘上，重装可复用。
 
 ## 常见问题
 
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
 | 装完显示「待重启」 | 宿主在安装前已经加载了层列表 | 重启 DSH 一次 |
-| 工具能用但显示「未加载」 | `cordis.patch.yml` 缺了锚点行（见「它做什么」） | 重装本版本或更新版本 |
-| `mcp__semble__*` 一直不出现 | 缺 `uvx`，或首次 PyPI/模型下载失败 | 手动跑 `uvx --from "semble[mcp]" semble --version` 看报错 |
-| 首次检索卡几分钟 | 嵌入模型一次性下载 | 等待，或把 `HF_ENDPOINT` 指向可达镜像 |
-| 安装时报 `ERR_PNPM_GIT_RESOLVE_FAILED` | 到 github.com 没有网络通路 | 改用 tarball 链接或 npm 镜像 |
+| 工具能用但显示「未加载」 | `cordis.patch.yml` 缺了锚点行 | 重装本版本或更新版本 |
+| `mcp__semble__*` 一直不出现 | 缺 `uvx`，或首次下载失败 | 手动跑 `uvx --from "semble[mcp]" semble --version` 看报错 |
+| 首次检索卡几分钟 | 模型一次性下载 | 等待，或设 `HF_ENDPOINT` |
+| 安装时报 `ERR_PNPM_GIT_RESOLVE_FAILED` | 到 github.com 没有网络通路 | 改用 tarball 链接或镜像 |
 
-## 内置 skill
+## 开发
 
-安装本 bundle 会同时注册一个路由 skill：`semble-code-search`。它的存在理由是：工具本身不会说明「什么时候值得用它」——模型先摸 `grep` 的话，根本不会发现索引能替它做什么。
+```sh
+git clone https://github.com/CodeIntegrity/dsh-semble
+dsh plugin --profile web add link:$(pwd)   # 之后改代码、重启 DSH
+```
 
-DSH 的 skill 是惰性加载的，成本结构如下：
+没有构建步骤：`lib/index.js` 是纯 ESM，`cordis.patch.yml` 直接读取。唯一运行时依赖是 `uv`。
 
-| 时机 | 进入会话的内容 | 体量 |
-| --- | --- | --- |
-| 首次请求前 | 一条目录条目：名称 + 截断后的描述 | 每会话几百字节 |
-| 模型调 `skill` 工具时 | 完整 `skills/semble/SKILL.md` 正文 | 约 2 KB，且只在实际用到时 |
-| 用户输入 `/semble-code-search` | 同一份正文，注入当步 | 手动触发 |
+## 许可
 
-正文**不会**进系统提示词。这是刻意设计：常驻在 system prompt 里的正文，每个会话都要重复付全量 token，不管这次用没用到工具。
-
-只想保留工具、不要 skill，删掉 `lib/index.js` 里的 `ctx.skills.register(...)` 调用即可。正文文件在 `skills/semble/SKILL.md`，也可以手工放到 `~/.dsh/skills/semble/SKILL.md` 交给文件系统 provider。
-
-## 更新策略
-
-默认 spec 为浮动版本（`semble[mcp]`），发版自动跟随上游仓库。
-只有上游 CLI 表面发生破坏性变更（参数/env 改名）时，才需要回来编辑这里的 `cordis.patch.yml`。
+MIT
