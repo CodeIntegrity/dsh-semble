@@ -8,8 +8,10 @@ DSH 会话。
 
 ## 它做什么
 
-安装一条 MCP 连接行（`@deepseek-ai/dsh-mcp-client`），配置为通过 stdio 启动官方的 Semble
-MCP server：
+安装两行 loader 条目：一行是挂在插件自己包名下的空壳锚点（anchor），另一行是 MCP 连接行
+（`@deepseek-ai/dsh-mcp-client`），配置为通过 stdio 启动官方的 Semble MCP server。
+锚点存在的原因：DSH 判定「已加载」用的是「loader 条目名 == 已安装包名」，没有它时插件在设置弹窗里
+会显示「未加载 / 待重启」，而工具其实已经在工作。锚点不注册任何工具、服务或事件。
 
 ```
 uvx --from "semble[mcp]" semble

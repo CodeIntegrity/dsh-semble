@@ -10,6 +10,14 @@
 # To pin a specific version for stability, edit this row in the DSH plugin
 # settings and change the spec to `semble[mcp]==X.Y.Z`.
 - insert:
+    # Host-side anchor row: an empty plugin loaded under this package's own name.
+    # DSH's plugin inventory (and the Plugin Hub) decide "loaded" by matching loader
+    # entry names against the installed package name, and the MCP client row below
+    # loads under @deepseek-ai/dsh-mcp-client — without this anchor the bundle would
+    # report 未加载 / 待重启 while its tools are actually registered and working.
+    - id: semble-mcp-anchor
+      name: '@local/semble-mcp'
+
     - id: semble-mcp
       name: '@deepseek-ai/dsh-mcp-client'
       config:

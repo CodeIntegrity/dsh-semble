@@ -8,8 +8,11 @@ English | [简体中文](README.zh-CN.md)
 
 ## What it does
 
-Installs one MCP connection row (`@deepseek-ai/dsh-mcp-client`) configured to start the official
-Semble MCP server over stdio:
+Installs two loader rows: a no-op anchor loaded under this package's own name, plus one MCP
+connection row (`@deepseek-ai/dsh-mcp-client`) configured to start the official Semble MCP server
+over stdio. The anchor exists because DSH decides "loaded" by matching loader entry names against
+the installed package name — without it the plugin is reported as 未加载 / 待重启 in the settings
+dialog even while its tools work. It registers no tools, services or events.
 
 ```
 uvx --from "semble[mcp]" semble
