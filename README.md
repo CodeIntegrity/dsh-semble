@@ -4,6 +4,8 @@ A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin tha
 [Semble](https://github.com/MinishLab/semble) (agent code search) to every DSH session as native
 MCP tools.
 
+English | [简体中文](README.zh-CN.md)
+
 ## What it does
 
 Installs one MCP connection row (`@deepseek-ai/dsh-mcp-client`) configured to start the official
