@@ -48,11 +48,93 @@ Config changes restart the connection; disk index caches survive.
 
 ## Install
 
-In any DSH session with this workspace:
+The plugin is a pure bundle: installing it means adding the package to a DSH profile, which makes
+DSH load `cordis.patch.yml` and mount the MCP connection. Pick the route that matches your setup.
+
+### Desktop app (Settings → Plugins → Install)
+
+Paste the repository spec into the install box:
+
+```
+github:CodeIntegrity/dsh-semble
+```
+
+To pin a release instead of tracking `main`:
+
+```
+github:CodeIntegrity/dsh-semble#v1.0.0
+```
+
+The settings page is the only supported route for the `desktop` profile — the CLI refuses it
+because the Electron app owns that profile's `node_modules` and lockfile.
+
+### CLI (any non-desktop profile: `web`, `tui`, …)
+
+```
+dsh plugin --profile web add github:CodeIntegrity/dsh-semble
+```
+
+The subcommand forwards to `pnpm add` inside the profile directory, then reconciles
+`dsh.profile.bundles`, so the bundle is mounted on the next start. `github:owner/repo`,
+`git+https://…`, `https://github.com/owner/repo` and `.tgz` URLs are all accepted.
+
+### Local checkout (development)
+
+Point the profile at this directory instead of a git ref:
+
+```
+dsh plugin --profile web add link:/absolute/path/to/dsh-semble
+```
+
+or, from a DSH session opened in this workspace:
 
 ```
 plugin_manager action=install_bundle target=D:\Workspace\dsh-semble
 ```
+
+The `link:` form keeps the profile pointing at your working copy, so edits to
+`cordis.patch.yml` take effect on the next host start without reinstalling.
+
+### Requirements for git installs
+
+- `git` on PATH and network access to the repository host.
+- No build step: the package has no `prepare` script, so pnpm needs no `allowBuilds` exemption.
+- `uv` is still required at *runtime* (see Requirements) — installing the plugin does not install it.
+
+Restart DSH after the first install. The settings dialog may say 待重启 until you do; that flag
+lives in host memory and clears on the next start.
+
+## Update
+
+Re-run the install with a newer ref (or press 更新 in the settings page):
+
+```
+dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v1.1.0
+```
+
+For a `link:` install, `git pull` in the checkout and restart DSH. Semble itself is updated
+separately and automatically — see Update policy.
+
+## Uninstall
+
+Settings → Plugins → 卸载, or:
+
+```
+dsh plugin --profile web remove @local/semble-mcp
+```
+
+Removal drops the dependency and the `dsh.profile.bundles` entry; the cached Semble index and the
+HuggingFace model stay on disk and are reused if you reinstall.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Row says 待重启 after install | The host loaded its layer list before the install | Restart DSH once |
+| Tools work but the row says 未加载 | `cordis.patch.yml` is missing the anchor row (see What it does) | Reinstall this version or newer |
+| `mcp__semble__*` never appears | `uvx` missing, or the first PyPI/model download failed | Run `uvx --from "semble[mcp]" semble --version` by hand and read the error |
+| First search hangs for minutes | Embedding model download (one-time) | Wait, or set `HF_ENDPOINT` to a reachable mirror |
+| `ERR_PNPM_GIT_RESOLVE_FAILED` during install | No network route to github.com | Use a tarball URL or an npm mirror instead |
 
 ## Update policy
 
