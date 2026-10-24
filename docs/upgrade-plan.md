@@ -3,6 +3,11 @@
 > 基线：commit `8cd3045`（v2.2.0），撰写日期 2026-10-23。测试基线：`node --test` 13/13 通过（Windows 本机）。
 > 所有判断均附文件与行号依据；无法从代码或公开信息确证的推断以 **[假设]** 标注。
 
+> **执行状态（2026-10-24，基线 8cd3045 → 2.3.0）**：阶段 0/1/2 全部完成，阶段 3 完成 `/semble version`。
+> 已落地：`readCapped` 真字节截断 + 事件回调兜底（a5ec071）；`/semble version` 与 cannot-start 四行指引（c5676b3）；测试扩至 23/23，新增 `test/consistency.test.js` 守护 patch yml 与 `SEMBLE_UVX_PREFIX` 一致（1cdf1c6）；strict `checkJs` 类型契约 + `npm run typecheck` + `./package.json` 导出（4425756）；三平台 push/PR CI（25521b9）；README 双语版本示例、新增「兼容性」小节、Development 补 typecheck。
+> 未做（按原计划排除）：env 白名单、默认版本下限、TS 全迁移、构建工具、模块化再拆分、默认硬 pin。
+> 假设复核：**A2 已证伪**——实测 `uvx --from 'semble[mcp]>=0.7' semble --version` 输出 0.7.0，uv 支持 PEP 508 约束（但默认策略仍保留浮动 spec）；A1/A3/A4/A5 维持原状。
+
 ## 结论（TL;DR）
 
 **这是一个小而健康的代码库（lib 共 372 行、零 npm 运行时依赖、无构建步骤、13 个测试全绿），真正的短板不在代码质量，而在工程保障**：没有任何 push/PR 级 CI（测试只在打 tag 发布时跑、且仅 ubuntu），README 宣称的三平台支持从未被 CI 验证；其次是个别健壮性细节（输出截断按 UTF-16 码元计数而非字节、事件回调内的同步文件操作缺异常兜底）与少量文档漂移。

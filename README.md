@@ -72,7 +72,7 @@ than "the best answer".
 dsh-semble
 ```
 
-Pin a version with `dsh-semble@2.1.0`. The settings page is the only supported route for the
+Pin a version with `dsh-semble@2.3.0`. The settings page is the only supported route for the
 `desktop` profile — the CLI refuses it because the Electron app owns that profile's `node_modules`
 and lockfile.
 
@@ -263,11 +263,29 @@ the CLI surface would need an edit here.
 Re-run the install with a newer version, or press 更新 in settings:
 
 ```sh
-dsh plugin --profile web add dsh-semble@2.1.0
+dsh plugin --profile web add dsh-semble@2.3.0
 ```
 
 Source installs re-run with the new ref, e.g.
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.1.0`.
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.3.0`.
+
+## Compatibility
+
+The package follows semver. The public surface, which 2.x keeps stable:
+
+- the two MCP tools `mcp__semble__search` and `mcp__semble__find_related` (their behavior tracks the
+  PyPI `semble` release uvx resolves — the plugin pins nothing, see *How it is wired*);
+- the plugin entry: the default export and the named `apply` from `dsh-semble`, receiving a context
+  with `skills` and optionally `inject`/`commands`;
+- the `/semble` subcommand allow-list (`savings`, `file-types`, `version`) and its result shape
+  (`{ kind: 'success' | 'error', text }`);
+- the exports `./locale/*.json`, `./icon`, and `./package.json`.
+
+Not covered by the promise: row ids and launch details inside `cordis.patch.yml` (they are host
+wiring, not API), the routing skill's name and body, and everything under `lib/` except the entry
+point — tests may import `parseSembleArgs`/`runSemble`, but downstream packages should not.
+The default `engines` requirement (`node` and `dsh`) only widens within a major version; a raised
+minimum is a minor bump at most, since installs resolve through the package manager.
 
 ## Uninstall
 
@@ -308,7 +326,8 @@ No build step: `lib/` is plain ESM and `cordis.patch.yml` is read directly. The 
 dependency is `uv`.
 
 `npm test` runs the suite with Node's built-in runner. The spawn tests replace `uvx` with the Node
-binary, so they neither download Semble nor touch your cache.
+binary, so they neither download Semble nor touch your cache. `npm run typecheck` runs `tsc` in
+checkJs mode over `lib/` — the JSDoc annotations are the type contract, and nothing is compiled.
 
 ## Publishing
 

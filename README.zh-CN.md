@@ -61,7 +61,7 @@ MCP 没有暴露的 CLI 报表，见[命令](#命令)。
 dsh-semble
 ```
 
-钉住版本写 `dsh-semble@2.1.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
+钉住版本写 `dsh-semble@2.3.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
 因为这个 profile 的 `node_modules` 与 lockfile 由 Electron 应用独占。
 
 ### 命令行
@@ -238,11 +238,28 @@ Semble 本体**不做 vendored 内嵌**。插件只声明如何从 PyPI 拉起�
 用更新的版本重跑安装，或在设置页点「更新」：
 
 ```sh
-dsh plugin --profile web add dsh-semble@2.1.0
+dsh plugin --profile web add dsh-semble@2.3.0
 ```
 
 源码安装则换 ref 重跑，例如
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.1.0`。
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v2.3.0`。
+
+## 兼容性
+
+本包遵循 semver。2.x 保持稳定的公开表面：
+
+- 两个 MCP 工具 `mcp__semble__search` 与 `mcp__semble__find_related`（其行为跟随 uvx 解析到的
+  PyPI `semble` 版本——插件不做 pin，见「如何接线」）；
+- 插件入口：`dsh-semble` 的 default export 与具名 `apply`，接收带 `skills`、可选 `inject`/`commands`
+  的上下文；
+- `/semble` 的子命令白名单（`savings`、`file-types`、`version`）与返回结构
+  （`{ kind: 'success' | 'error', text }`）；
+- 导出项 `./locale/*.json`、`./icon` 与 `./package.json`。
+
+不在承诺范围内：`cordis.patch.yml` 内部的行 id 与启动细节（那是宿主接线，不是 API）、路由 skill
+的名称与正文，以及 `lib/` 中除入口外的一切——测试会 import `parseSembleArgs`/`runSemble`，但下游
+包不应依赖。`engines` 的默认要求（`node` 与 `dsh`）在一个大版本内只放宽不收紧；提高最低版本最多
+算 minor，因为安装经由包管理器解析。
 
 ## 卸载
 
@@ -281,7 +298,8 @@ dsh plugin --profile web add link:$(pwd)   # 之后改代码、重启 DSH
 没有构建步骤：`lib/` 是纯 ESM，`cordis.patch.yml` 直接读取。唯一运行时依赖是 `uv`。
 
 `npm test` 用 Node 自带的 test runner 跑测试。涉及子进程的用例用 Node 可执行文件代替 `uvx`，
-所以不会下载 Semble，也不会碰你的缓存。
+所以不会下载 Semble，也不会碰你的缓存。`npm run typecheck` 以 checkJs 模式对 `lib/` 跑 `tsc`——
+JSDoc 注解就是类型契约，不产出任何编译产物。
 
 ## 发布
 
