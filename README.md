@@ -303,6 +303,10 @@ the actual work, which hid it). No API changes in 3.0.1; update straight from 3.
 so the index cache can be dropped from within a session; the target word is required, and a bare
 `/semble clear` only prints the usage.
 
+**3.0.2 → 3.0.3**: docs only — the routing skill's *if the tools are missing* section now names the
+usual cause of a CLI launch failure (`uv` absent from the host's PATH) and the Windows `uvx.cmd`
+shim workaround, so the triage loop closes inside the skill instead of the README. No code changes.
+
 ## Uninstall
 
 **Settings → Plugins → 卸载**, or:
