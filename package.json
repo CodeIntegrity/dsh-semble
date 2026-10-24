@@ -1,9 +1,9 @@
 {
   "name": "dsh-semble",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "type": "module",
   "main": "lib/index.js",
-  "description": "Semble 语义代码搜索（semantic code search）MCP bundle：安装即用，无需客户端配置。Semble semantic code search for DeepSeek Harness via MCP (search / find_related).",
+  "description": "Semble 语义代码搜索（semantic code search）插件：安装即用，无需客户端配置。Semble semantic code search for DeepSeek Harness as native tools (semble_search / semble_find_related), powered by the Semble CLI via uvx.",
   "license": "MIT",
   "author": "Liu Kai",
   "icon": "icon.svg",
@@ -25,9 +25,9 @@
     "dsh-bundle",
     "deepseek-harness",
     "semble",
-    "mcp",
     "code-search",
-    "semantic-search"
+    "semantic-search",
+    "uvx"
   ],
   "exports": {
     ".": "./lib/index.js",

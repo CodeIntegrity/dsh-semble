@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Semble 代码搜索（MCP）",
-    "description": "把 Semble 的 Agent 代码检索引擎接入为原生 MCP 工具（search / find_related），并新增 /semble 命令输出 CLI 的 token 节约与文件类型报表。通过 uvx 从 PyPI 启动官方 Semble MCP 服务器，自动跟随上游最新版本。"
+    "title": "Semble 代码搜索",
+    "description": "把 Semble 的 Agent 代码检索引擎接入为两个原生工具（semble_search / semble_find_related），并新增 /semble 命令输出 CLI 的 token 节约与文件类型报表。每次调用都经 uvx 运行 PyPI 上的官方 Semble CLI——无 MCP 服务器、无常驻进程，自动跟随上游最新版本。"
   }
 }

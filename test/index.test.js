@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import sembleMcpBundle, { handleSembleCommand } from '../lib/index.js'
+import sembleBundle, { handleSembleCommand } from '../lib/index.js'
+import { DEFAULT_TOOL_TIMEOUT_MS } from '../lib/tools.js'
 
 /** `node -e savings` replaces uvx, so the handler branches run without an install. */
 const NODE_RUNNER = { command: process.execPath, prefix: ['-e'] }
@@ -71,55 +72,79 @@ describe('handleSembleCommand', () => {
   })
 })
 
-describe('sembleMcpBundle', () => {
-  it('registers the routing skill and the /semble command once commands exist', () => {
-    const skills = []
-    const commands = []
-    const scopes = []
-
-    const fakeCtx = {
-      skills: { register: (definition) => (skills.push(definition), () => {}) },
+describe('sembleBundle', () => {
+  /** A fake plugin context that records every registration and soft injection. */
+  function fakeContext() {
+    const state = { skills: [], tools: [], commands: [], scopes: [] }
+    const ctx = {
+      skills: { register: (definition) => (state.skills.push(definition), () => {}) },
       inject: (deps, callback) => {
-        scopes.push(deps)
-        callback({ commands: { register: (definition) => (commands.push(definition), () => {}) } })
+        state.scopes.push(deps)
+        const child = /** @type {Record<string, unknown>} */ ({})
+        if (deps.includes('tools')) child.tools = { register: (d) => (state.tools.push(d), () => {}) }
+        if (deps.includes('commands')) child.commands = { register: (d) => (state.commands.push(d), () => {}) }
+        callback(/** @type {typeof ctx & typeof child} */ (/** @type {unknown} */ ({ ...ctx, ...child })))
       },
     }
+    return { ctx, state }
+  }
 
-    sembleMcpBundle(fakeCtx)
+  it('registers the tools, the routing skill, and /semble via soft injections', () => {
+    const { ctx, state } = fakeContext()
 
-    assert.deepEqual(scopes, [['commands']])
-    assert.equal(skills.length, 1)
-    assert.equal(skills[0].name, 'semble-code-search')
-    assert.equal(skills[0].source, 'bundle:dsh-semble')
+    sembleBundle(ctx)
 
-    assert.equal(commands.length, 1)
-    assert.equal(commands[0].name, 'semble')
-    assert.equal(typeof commands[0].handler, 'function')
-    assert.ok(commands[0].input.hint.length > 0)
+    assert.deepEqual(state.scopes, [['tools'], ['commands']])
+
+    assert.deepEqual(state.tools.map((definition) => definition.name), ['semble_search', 'semble_find_related'])
+    for (const definition of state.tools) {
+      assert.equal(typeof definition.description, 'string')
+      assert.equal(definition.parameters.type, 'object')
+      assert.equal(definition.timeoutMs, DEFAULT_TOOL_TIMEOUT_MS)
+      assert.deepEqual(definition.output.schema, { type: 'string' })
+      assert.equal(typeof definition.execute, 'function')
+    }
+
+    assert.equal(state.skills.length, 1)
+    assert.equal(state.skills[0].name, 'semble-code-search')
+    assert.equal(state.skills[0].source, 'bundle:dsh-semble')
+    assert.match(state.skills[0].resourceBase.description, /semble_search and semble_find_related/)
+
+    assert.equal(state.commands.length, 1)
+    assert.equal(state.commands[0].name, 'semble')
+    assert.equal(typeof state.commands[0].handler, 'function')
+    assert.ok(state.commands[0].input.hint.length > 0)
   })
 
-  it('keeps working without a command surface', () => {
+  it('applies the loader row config to the registered tools', () => {
+    const { ctx, state } = fakeContext()
+
+    sembleBundle(ctx, { toolTimeoutMs: 250_000, command: 'semble.exe', args: ['--from', 'semble[mcp]', 'semble'] })
+
+    for (const definition of state.tools) {
+      assert.equal(definition.timeoutMs, 250_000)
+    }
+  })
+
+  it('keeps working without an inject function', () => {
     const skills = []
     const fakeCtx = {
       skills: { register: (definition) => (skills.push(definition), () => {}) },
-      // No `inject`: a composition that only loads the MCP client must still get
-      // the routing skill, and must not throw.
+      // No `inject`: a composition with neither a tool registry nor a command
+      // surface must still get the routing skill, and must not throw.
     }
 
-    sembleMcpBundle(fakeCtx)
+    sembleBundle(fakeCtx)
 
     assert.equal(skills.length, 1)
   })
 
   it('strips the YAML frontmatter from the registered skill body', () => {
-    const skills = []
-    const fakeCtx = {
-      skills: { register: (definition) => (skills.push(definition), () => {}) },
-    }
+    const { ctx, state } = fakeContext()
 
-    sembleMcpBundle(fakeCtx)
+    sembleBundle(ctx)
 
-    assert.ok(!skills[0].content.startsWith('---'))
-    assert.match(skills[0].content, /^# Semble code search/)
+    assert.ok(!state.skills[0].content.startsWith('---'))
+    assert.match(state.skills[0].content, /^# Semble code search/)
   })
 })

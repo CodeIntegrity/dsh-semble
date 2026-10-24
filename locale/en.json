@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Semble Code Search (MCP)",
-    "description": "Exposes the Semble agent code-search engine as native MCP tools (search / find_related) and adds a /semble command for the CLI's token-savings and file-type reports. Starts the official Semble MCP server from PyPI via uvx; follows the latest upstream release automatically."
+    "title": "Semble Code Search",
+    "description": "Exposes the Semble agent code-search engine as two native tools (semble_search / semble_find_related) and adds a /semble command for the CLI's token-savings and file-type reports. Every call runs the official Semble CLI from PyPI via uvx — no MCP server, no daemon; follows the latest upstream release automatically."
   }
 }

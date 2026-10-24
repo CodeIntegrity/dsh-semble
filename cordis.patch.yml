@@ -1,10 +1,19 @@
-# Semble MCP bridge for DeepSeek Harness.
+# Semble code-search bundle for DeepSeek Harness.
 #
-# Inserts the official @deepseek-ai/dsh-mcp-client row configured to start the
-# Semble MCP server (PyPI project `semble`, MIT, https://github.com/MinishLab/semble)
-# over stdio. No semble source code is vendored here: `uvx` resolves and installs
-# the package from PyPI, so upstream releases (bugfixes, new MCP tools) are picked
-# up automatically on the next server start.
+# Since 3.0.0 this bundle does not load an MCP server. A single loader row
+# loads this package itself, and the plugin registers its two native tools
+# (semble_search / semble_find_related) directly into the host tool registry.
+# No semble source code is vendored here: every call shells out to
+# `uvx --from "semble[mcp]" semble`, so `uvx` resolves and installs the package
+# from PyPI and upstream releases (bugfixes, new CLI flags) are picked up on
+# the next call.
+#
+# The row's `config` is passed to the plugin (apply(ctx, config)) and becomes
+# the launcher settings for the tools: `command`/`args` launch the CLI,
+# `toolTimeoutMs` kills a search after this many milliseconds, `env` is layered
+# onto the child environment. The values below are pinned by
+# test/consistency.test.js to equal the defaults lib/tools.js applies when a
+# field is omitted or mistyped.
 #
 # Platform policy: this file deliberately contains no OS-specific path and no
 # region-specific endpoint. `command: uvx` is a real executable on every platform
@@ -17,32 +26,25 @@
 # To pin a specific version for stability, edit this row in the DSH plugin
 # settings and change the spec to `semble[mcp]==X.Y.Z`.
 - insert:
-    # Host-side anchor row: an empty plugin loaded under this package's own name.
-    # DSH's plugin inventory (and the Plugin Hub) decide "loaded" by matching loader
-    # entry names against the installed package name, and the MCP client row below
-    # loads under @deepseek-ai/dsh-mcp-client — without this anchor the bundle would
-    # report 未加载 / 待重启 while its tools are actually registered and working.
-    - id: semble-mcp-anchor
+    # The only loader row. DSH's plugin inventory (and the Plugin Hub) decide
+    # "loaded" by matching loader entry names against the installed package
+    # name, so this row is named after the package itself and the bundle
+    # reports loaded with nothing else declared.
+    - id: semble-anchor
       name: 'dsh-semble'
-
-    - id: semble-mcp
-      name: '@deepseek-ai/dsh-mcp-client'
       config:
-        serverName: semble
-        transport: stdio
         command: uvx
         args:
           - --from
           - 'semble[mcp]'
           - semble
-        failOnStartupError: true
         # The first search in a repository also builds that repository's index:
         # chunking runs locally and the embedding model is downloaded once from
-        # HuggingFace. That routinely exceeds the MCP client's 60 s default, which
-        # would fail the first call even though the server is healthy. Five
-        # minutes covers a cold start on a slow link; once an index exists, calls
-        # answer in seconds and the higher ceiling costs nothing.
-        toolCallTimeoutMs: 300000
+        # HuggingFace. That routinely exceeds a 60 s ceiling, which would fail
+        # the first call even though the CLI is healthy. Five minutes covers a
+        # cold start on a slow link; once an index exists, calls answer in
+        # seconds and the higher ceiling costs nothing.
+        toolTimeoutMs: 300000
         # No `env` defaults on purpose: the embedding model
         # (minishlab/potion-code-16M-v2) is fetched from huggingface.co unless the
         # operator asks otherwise. On networks where huggingface.co is unreachable,
@@ -50,6 +52,6 @@
         #
         #   HF_ENDPOINT: https://hf-mirror.com
         #
-        # `cwd` is intentionally unset too: the server inherits the host working
-        # directory, and per-call `repo` values should be absolute paths in the
-        # host's own convention (C:\... on Windows, /... on macOS/Linux).
+        # `cwd` is intentionally unset too: every call resolves its own
+        # repositories, and `repo` values should be absolute paths in the host's
+        # own convention (C:\... on Windows, /... on macOS/Linux).
