@@ -66,4 +66,6 @@ Controls, all on both tools unless noted:
 absent from your toolset, the plugin is not loaded in this session: say so and fall back to
 `grep`/`glob`; do not narrate a call you cannot make. The user can still run `/semble savings`,
 `/semble file-types` and `/semble version` from the composer — those are host commands and do not
-depend on the tool registry.
+depend on the tool registry. If those report the Semble CLI could not be started, the usual cause
+is `uv` missing from the host's PATH (install: <https://docs.astral.sh/uv/>); on Windows with only
+a `uvx.cmd` shim, the plugin's `command` setting must point at `uvx.exe`.
