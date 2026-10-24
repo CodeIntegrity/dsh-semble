@@ -11,6 +11,7 @@ import { describe, it } from 'node:test'
 
 import { SEMBLE_UVX_PREFIX } from '../lib/cli.js'
 import { DEFAULT_TOOL_TIMEOUT_MS, parseToolConfig } from '../lib/tools.js'
+import sembleBundle from '../lib/index.js'
 
 const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
 
@@ -46,5 +47,14 @@ describe('cordis.patch.yml ↔ lib', () => {
     assert.doesNotMatch(patch, /^\s+env:/m)
     assert.doesNotMatch(patch, /^\s+cwd:/m)
     assert.match(patch, /HF_ENDPOINT/)
+  })
+
+  it('carries the skills inject on the default export itself', () => {
+    // Cordis reads the fiber's injected services from the callback's own
+    // `inject` property; `unwrapExports` collapses this module to its default
+    // export, so a module-level `export const inject` alone never reaches the
+    // registry and every `ctx.skills` access throws "without inject".
+    assert.ok(Array.isArray(sembleBundle.inject), 'default export carries no inject array')
+    assert.ok(sembleBundle.inject.includes('skills'))
   })
 })

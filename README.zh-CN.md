@@ -261,6 +261,10 @@ dsh plugin --profile web add dsh-semble@3.0.0
 `semble_search` / `semble_find_related`，设置字段 `toolCallTimeoutMs` 更名为 `toolTimeoutMs`。
 旧名不再注册；对旧名有脚本化依赖的话需要更新。升级后重启一次 DSH。
 
+**3.0.0 → 3.0.1**：修复 3.0.0 在真机上的加载失败——默认导出未携带 `inject` 声明，加载器读不到
+skill 依赖，插件行报「异常」且工具不出现（2.x 的锚点行其实也受同一缺陷影响，只是当时 MCP 行在
+承担实际工作）。3.0.1 无 API 变化，从 3.0.0 直接更新即可。
+
 ## 卸载
 
 **设置 → 插件 → 卸载**，或：

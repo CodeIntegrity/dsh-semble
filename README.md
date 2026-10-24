@@ -293,6 +293,11 @@ minimum is a minor bump at most, since installs resolve through the package mana
 the `toolCallTimeoutMs` setting becomes `toolTimeoutMs`. The old names are no longer registered;
 update any script that referenced them. Restart DSH once after upgrading.
 
+**3.0.0 → 3.0.1**: fixes a load failure on real hosts — the default export did not carry the
+`inject` declaration, so the loader could not see the skill dependency, the plugin row reported as
+failed, and no tools appeared (the 2.x anchor row had the same latent defect; the MCP row was doing
+the actual work, which hid it). No API changes in 3.0.1; update straight from 3.0.0.
+
 ## Uninstall
 
 **Settings → Plugins → 卸载**, or:
