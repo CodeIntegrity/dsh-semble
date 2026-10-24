@@ -41,7 +41,8 @@ huggingface.co, point `HF_ENDPOINT` at a mirror.
 | `semble_find_related` | one location you already know | its neighbours: other implementations, callers, tests |
 
 The bundle also registers one slash command, `/semble`, for the reporting subcommands the tools do
-not expose: `/semble savings`, `/semble file-types` and `/semble version`. See
+not expose: `/semble savings`, `/semble file-types`, `/semble version` and
+`/semble clear <index|savings|orphans|all>`. See
 [Commands](#commands).
 
 A typical exchange:
@@ -186,31 +187,31 @@ list costs one first-time index build per repository.
 
 ## Commands
 
-The two tools cover retrieval only; Semble's reporting subcommands exist only in its CLI. The
-bundle registers `/semble` for them:
+The two tools cover retrieval only; Semble's reporting and cache-maintenance subcommands exist only
+in its CLI. The bundle registers `/semble` for them:
 
 | Command | Prints |
 | --- | --- |
 | `/semble savings` | tokens saved by returning snippets instead of whole files, per period and per call type |
 | `/semble file-types` | the extensions Semble indexes, as JSON grouped by content type |
 | `/semble version` | the Semble release the `uvx` installation resolved — the quickest install check |
+| `/semble clear index` | drop the search index cache; the next search rebuilds it |
+| `/semble clear orphans` | remove only indexes whose source path no longer exists |
+| `/semble clear savings` | reset the token-savings statistics |
+| `/semble clear all` | all of the above |
 
 All of them run in the host process: nothing is sent to the model, no approval prompt appears, and the output
 is the CLI's own (colour disabled). The same `uvx --from "semble[mcp]" semble` installation is used, so
 `/semble` works exactly where the search tools work.
 
 `savings` reads the cache Semble wrote, so it only counts searches made against the same
-`SEMBLE_CACHE_LOCATION`. To see a summary of everything, and for maintenance, stay in a terminal:
+`SEMBLE_CACHE_LOCATION`. Clearing can also be done from a terminal:
+`uvx --from "semble[mcp]" semble clear index`.
 
-```sh
-uvx --from "semble[mcp]" semble savings        # same report, from a shell
-uvx --from "semble[mcp]" semble clear          # drop caches
-uvx --from "semble[mcp]" semble clear index    # force a rebuild
-```
-
-`/semble` is deliberately not a search shortcut — that is what the two tools are for — and it has no
-destructive subcommands, because a slash command cannot ask for confirmation. Type `/semble` alone for
-the usage line.
+`clear` always names its target: a bare `/semble clear`, or a misspelled one, only prints the usage and
+deletes nothing. Clearing is safe — indexes rebuild on the next search — but not free: the first search
+after `clear index` / `clear all` re-indexes from scratch. `/semble` is deliberately not a search
+shortcut — that is what the two tools are for. Type `/semble` alone for the usage line.
 
 ## Platform notes
 
@@ -297,6 +298,10 @@ update any script that referenced them. Restart DSH once after upgrading.
 `inject` declaration, so the loader could not see the skill dependency, the plugin row reported as
 failed, and no tools appeared (the 2.x anchor row had the same latent defect; the MCP row was doing
 the actual work, which hid it). No API changes in 3.0.1; update straight from 3.0.0.
+
+**3.0.1 → 3.0.2**: `/semble` gains the `clear` subcommand (`index` / `savings` / `orphans` / `all`)
+so the index cache can be dropped from within a session; the target word is required, and a bare
+`/semble clear` only prints the usage.
 
 ## Uninstall
 

@@ -32,7 +32,8 @@
 | `semble_search` | 一句话描述代码做什么、或者它在哪儿 | 按相关度排序的 `file:line` 命中 + 片段 |
 | `semble_find_related` | 一个你已经知道的位置 | 它的邻居：其他实现、调用方、测试 |
 
-另外还注册了一个 slash command：`/semble savings`、`/semble file-types` 和 `/semble version`，用来跑
+另外还注册了一个 slash command：`/semble savings`、`/semble file-types`、`/semble version` 和
+`/semble clear <index|savings|orphans|all>`，用来跑
 工具没有暴露的 CLI 报表，见[命令](#命令)。
 
 一次典型对话：
@@ -167,28 +168,27 @@ git 地址同理，首次会 clone 进缓存。每个仓库各有一份索引；
 
 ## 命令
 
-两个工具只覆盖检索；Semble 的报表子命令只存在于 CLI。bundle 为它们注册了 `/semble`：
+两个工具只覆盖检索；Semble 的报表与缓存维护子命令只存在于 CLI。bundle 为它们注册了 `/semble`：
 
 | 命令 | 输出 |
 | --- | --- |
 | `/semble savings` | 用片段代替整文件省下的 token，按时间区间和调用类型分列 |
 | `/semble file-types` | Semble 会索引的扩展名，按内容类型分组的 JSON |
 | `/semble version` | `uvx` 解析到的 Semble 版本——最快的安装自检 |
+| `/semble clear index` | 清掉索引缓存；下一次检索会重新建索引 |
+| `/semble clear orphans` | 只删除源路径已不存在的索引 |
+| `/semble clear savings` | 重置 token 节省统计 |
+| `/semble clear all` | 以上全部 |
 
-三个命令都在宿主进程里跑：不进模型、不弹审批，输出就是 CLI 原文（已关闭颜色）。用的是同一份
+所有命令都在宿主进程里跑：不进模型、不弹审批，输出就是 CLI 原文（已关闭颜色）。用的是同一份
 `uvx --from "semble[mcp]" semble` 安装，所以检索工具能用的地方它就能用。
 
-`savings` 读的是 Semble 写的缓存，因此只统计同一个 `SEMBLE_CACHE_LOCATION` 下的检索。要看全量汇总
-或做维护，回终端：
+`savings` 读的是 Semble 写的缓存，因此只统计同一个 `SEMBLE_CACHE_LOCATION` 下的检索。清缓存也可
+回终端执行：`uvx --from "semble[mcp]" semble clear index`。
 
-```sh
-uvx --from "semble[mcp]" semble savings        # 同一份报表，在 shell 里看
-uvx --from "semble[mcp]" semble clear          # 清缓存
-uvx --from "semble[mcp]" semble clear index    # 强制重建索引
-```
-
-`/semble` 故意不做检索捷径——那是两个工具的事；也故意不带破坏性子命令，因为 slash command 没法弹确认。
-只敲 `/semble` 会显示用法。
+`clear` 必须显式带目标词：只敲 `/semble clear` 或目标拼错时只显示用法，不会删任何东西。清索引是
+安全的（下次检索自动重建），但不清费——`clear index` / `clear all` 之后的第一次检索要从头建索引。
+`/semble` 故意不做检索捷径——那是两个工具的事。只敲 `/semble` 会显示用法。
 
 ## 平台差异
 
@@ -264,6 +264,9 @@ dsh plugin --profile web add dsh-semble@3.0.0
 **3.0.0 → 3.0.1**：修复 3.0.0 在真机上的加载失败——默认导出未携带 `inject` 声明，加载器读不到
 skill 依赖，插件行报「异常」且工具不出现（2.x 的锚点行其实也受同一缺陷影响，只是当时 MCP 行在
 承担实际工作）。3.0.1 无 API 变化，从 3.0.0 直接更新即可。
+
+**3.0.1 → 3.0.2**：`/semble` 新增 `clear` 子命令（`index` / `savings` / `orphans` / `all`），
+会话内即可清索引缓存；必须显式带目标词，裸敲 `/semble clear` 只显示用法。
 
 ## 卸载
 

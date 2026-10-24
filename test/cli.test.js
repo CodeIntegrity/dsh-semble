@@ -13,6 +13,23 @@ describe('parseSembleArgs', () => {
     assert.deepEqual(parseSembleArgs('version'), { kind: 'run', argv: ['--version'] })
   })
 
+  it('forwards clear only with an explicit target the CLI accepts', () => {
+    assert.deepEqual(parseSembleArgs('clear index'), { kind: 'run', argv: ['clear', 'index'] })
+    assert.deepEqual(parseSembleArgs('clear orphans'), { kind: 'run', argv: ['clear', 'orphans'] })
+    assert.deepEqual(parseSembleArgs('clear savings'), { kind: 'run', argv: ['clear', 'savings'] })
+    assert.deepEqual(parseSembleArgs('clear all'), { kind: 'run', argv: ['clear', 'all'] })
+  })
+
+  it('shows usage for a bare clear instead of deleting anything', () => {
+    assert.deepEqual(parseSembleArgs('clear'), { kind: 'usage' })
+    assert.deepEqual(parseSembleArgs('clear  '), { kind: 'usage' })
+  })
+
+  it('shows usage for a clear target outside the CLI surface', () => {
+    assert.deepEqual(parseSembleArgs('clear everything'), { kind: 'usage' })
+    assert.deepEqual(parseSembleArgs('clear all extra'), { kind: 'usage' })
+  })
+
   it('shows usage for empty input', () => {
     assert.deepEqual(parseSembleArgs(''), { kind: 'usage' })
     assert.deepEqual(parseSembleArgs(undefined), { kind: 'usage' })
@@ -20,7 +37,6 @@ describe('parseSembleArgs', () => {
   })
 
   it('rejects anything outside the allow-list, including extra words', () => {
-    assert.deepEqual(parseSembleArgs('clear'), { kind: 'unknown', name: 'clear' })
     assert.deepEqual(parseSembleArgs('savings --format json'), {
       kind: 'unknown',
       name: 'savings --format json',
@@ -31,6 +47,7 @@ describe('parseSembleArgs', () => {
   it('keeps the usage text free of ANSI escapes', () => {
     assert.match(SEMBLE_USAGE, /savings/)
     assert.match(SEMBLE_USAGE, /file-types/)
+    assert.match(SEMBLE_USAGE, /clear index/)
     assert.doesNotMatch(SEMBLE_USAGE, /\u001B\[/)
   })
 })

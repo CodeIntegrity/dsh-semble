@@ -18,9 +18,15 @@ describe('handleSembleCommand', () => {
   })
 
   it('rejects an unknown subcommand with the usage text', async () => {
-    const result = await handleSembleCommand({ rawInput: 'clear' })
+    const result = await handleSembleCommand({ rawInput: 'wipe' })
     assert.equal(result.kind, 'error')
-    assert.match(result.text, /Unknown subcommand "clear"/)
+    assert.match(result.text, /Unknown subcommand "wipe"/)
+  })
+
+  it('answers usage for a bare clear instead of clearing', async () => {
+    const result = await handleSembleCommand({ rawInput: 'clear' })
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /\/semble clear index/)
   })
 
   it('returns CLI output on success', async () => {
