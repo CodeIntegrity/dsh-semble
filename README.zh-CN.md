@@ -1,8 +1,14 @@
-# dsh-semble
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeIntegrity/dsh-semble/main/dsh-semble.png" alt="dsh-semble" width="760">
+</p>
 
-[![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
+<h1 align="center">dsh-semble</h1>
 
-[English](README.md) | 简体中文
+<p align="center">
+  <a href="https://www.npmjs.com/package/dsh-semble"><img src="https://img.shields.io/npm/v/dsh-semble.svg" alt="npm version"></a>
+</p>
+
+<p align="center"><a href="README.md">English</a> | 简体中文</p>
 
 `dsh-semble` 把 [Semble](https://github.com/MinishLab/semble) ——一个专为 agent 打造的代码检索引擎
 ——接进 DSH 会话，以两个原生工具的形式出现：`semble_search` 与 `semble_find_related`。从 3.0.0 起

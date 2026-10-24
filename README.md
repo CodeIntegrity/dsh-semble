@@ -1,8 +1,14 @@
-# dsh-semble
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeIntegrity/dsh-semble/main/dsh-semble.png" alt="dsh-semble" width="760">
+</p>
 
-[![npm](https://img.shields.io/npm/v/dsh-semble.svg)](https://www.npmjs.com/package/dsh-semble)
+<h1 align="center">dsh-semble</h1>
 
-English | [简体中文](README.zh-CN.md)
+<p align="center">
+  <a href="https://www.npmjs.com/package/dsh-semble"><img src="https://img.shields.io/npm/v/dsh-semble.svg" alt="npm version"></a>
+</p>
+
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
 `dsh-semble` brings [Semble](https://github.com/MinishLab/semble) — a code search engine built for
 agents — into each DSH session as two native tools: `semble_search` and `semble_find_related`. Since
