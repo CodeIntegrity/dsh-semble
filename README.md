@@ -5,7 +5,17 @@
 <h1 align="center">dsh-semble</h1>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-semble"><img src="https://img.shields.io/npm/v/dsh-semble.svg" alt="npm version"></a>
+  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="Awesome DSH Plugin"></a>
+  <a href="https://dsh-plugin.org/plugins/codeintegrity/dsh-semble"><img src="https://dsh-plugin.org/badges/listed.svg" alt="Listed on dsh-plugin.org"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="license: MIT"></a>
+  <a href="https://www.npmjs.com/package/dsh-semble"><img src="https://img.shields.io/npm/v/dsh-semble.svg?style=flat-square" alt="npm version"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/actions/workflows/ci.yml"><img src="https://github.com/CodeIntegrity/dsh-semble/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/stargazers"><img src="https://img.shields.io/github/stars/CodeIntegrity/dsh-semble.svg?style=flat-square" alt="GitHub stars"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/commits/main"><img src="https://img.shields.io/github/last-commit/CodeIntegrity/dsh-semble.svg?style=flat-square" alt="last commit"></a>
+  <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-0e7490.svg?style=flat-square" alt="topic: dsh-plugin"></a>
+  <a href="#platform-notes"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg?style=flat-square" alt="platform: Windows, macOS, Linux"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/blob/main/package.json"><img src="https://img.shields.io/badge/node-%E2%89%A522-43853d.svg?style=flat-square&logo=node.js&logoColor=white" alt="node: >=22"></a>
+  <a href="#compatibility"><img src="https://img.shields.io/badge/dsh-%E2%89%A50.2.1--rc.2-4B32C3.svg?style=flat-square" alt="dsh: >=0.2.1-rc.2"></a>
 </p>
 
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
