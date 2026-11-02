@@ -3,4 +3,5 @@
 node_modules/
 clear/
 .eval-cache/
+.npm-cache/
 

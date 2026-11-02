@@ -1,6 +1,6 @@
 {
   "name": "dsh-semble",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "type": "module",
   "main": "lib/index.js",
   "description": "Semble 语义代码搜索（semantic code search）插件：安装即用，无需客户端配置。Semble semantic code search for DeepSeek Harness as native tools (semble_search / semble_find_related), powered by the Semble CLI via uvx.",
@@ -8,7 +8,7 @@
   "author": "Liu Kai",
   "icon": "icon.svg",
   "engines": {
-    "node": ">=22",
+    "node": ">=24.9",
     "dsh": ">=0.2.1-rc.2"
   },
   "homepage": "https://github.com/CodeIntegrity/dsh-semble#readme",
@@ -55,7 +55,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^22.20.5",
+    "@types/node": "^24.0.0",
     "typescript": "^5.9.3"
   }
 }
