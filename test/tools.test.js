@@ -14,12 +14,13 @@ import {
   buildSearchArgs,
   buildFindRelatedArgs,
   parseSearchOutput,
+  parseSearchPayload,
   renderHits,
   createSembleTools,
 } from '../lib/tools.js'
 import { SEMBLE_UVX_PREFIX } from '../lib/cli.js'
 
-/** One hit exactly as `semble search --format json` reported it on 0.7.0. */
+/** One hit exactly as `semble search --format json` reported it on 0.7.0, re-verified against 0.7.3. */
 const CLI_SHAPE = {
   query: 'register tool definitions',
   results: [
@@ -168,6 +169,20 @@ test('parseSearchOutput rejects non-JSON and result-less payloads', () => {
   assert.throws(() => parseSearchOutput('[1, 2, 3]'), /"results"/)
 })
 
+test('parseSearchPayload keeps the multi-repo label map and drops non-string sources', () => {
+  const { hits, repos } = parseSearchPayload(JSON.stringify({
+    results: [{ file_path: 'service-a\\src\\x.py', start_line: 1, end_line: 4 }],
+    repos: { 'service-a': 'D:\\clones\\service-a', junk: 42 },
+  }))
+  assert.equal(hits.length, 1)
+  assert.deepEqual(repos, { 'service-a': 'D:\\clones\\service-a' })
+})
+
+test('parseSearchPayload returns an empty map when upstream omits repos', () => {
+  const { repos } = parseSearchPayload(JSON.stringify(CLI_SHAPE))
+  assert.deepEqual(repos, {})
+})
+
 test('renderHits renders file:line headers, scores and fenced snippets', () => {
   const hits = parseSearchOutput(JSON.stringify(CLI_SHAPE))
   const text = renderHits('register tool definitions', ['D:\\work\\repo'], hits)
@@ -176,6 +191,15 @@ test('renderHits renders file:line headers, scores and fenced snippets', () => {
   assert.match(text, /lib\\cli\.js:40-58 {2}score 0\.0082/)
   assert.match(text, /```\nctx\.inject\(\["tools"\]/)
   assert.equal(text.includes('"results"'), false)
+})
+
+test('renderHits lists repo labels when upstream reported a sources map', () => {
+  const { hits, repos } = parseSearchPayload(JSON.stringify({
+    results: [{ file_path: 'service-a\\src\\x.py', start_line: 1, end_line: 4, score: 0.02, content: 'x' }],
+    repos: { 'service-a': 'D:\\clones\\service-a' },
+  }))
+  const text = renderHits('invoice endpoint', ['D:\\clones\\service-a'], hits, repos)
+  assert.match(text, /Sources: service-a → D:\\clones\\service-a/)
 })
 
 test('renderHits gives guidance on an empty result', () => {

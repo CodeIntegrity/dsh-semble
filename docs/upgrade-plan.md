@@ -7,6 +7,9 @@
 > 已落地：`readCapped` 真字节截断 + 事件回调兜底（a5ec071）；`/semble version` 与 cannot-start 四行指引（c5676b3）；测试扩至 23/23，新增 `test/consistency.test.js` 守护 patch yml 与 `SEMBLE_UVX_PREFIX` 一致（1cdf1c6）；strict `checkJs` 类型契约 + `npm run typecheck` + `./package.json` 导出（4425756）；三平台 push/PR CI（25521b9）；README 双语版本示例、新增「兼容性」小节、Development 补 typecheck。
 > 未做（按原计划排除）：env 白名单、默认版本下限、TS 全迁移、构建工具、模块化再拆分、默认硬 pin。
 > 假设复核：**A2 已证伪**——实测 `uvx --from 'semble[mcp]>=0.7' semble --version` 输出 0.7.0，uv 支持 PEP 508 约束（但默认策略仍保留浮动 spec）；A1/A3/A4/A5 维持原状。
+>
+> **上游复核（2026-11-11）**：MinishLab/semble 已推进到 0.7.3（PyPI 上传 2026-11-08；自 0.7.0 起 5 个提交：新增 skill、MCP 可选 HTTP transport、Hub 下载失败提示更清晰、skill description YAML 修复、worker pool 被拒用时进程内分块）。浮动 spec 实测解析到 0.7.3；本机用 0.7.3 实跑 `semble search --format json`，`query`/`results[].{file_path,start_line,end_line,score,content}` 结构与 0.7.0 完全一致，`search`/`find-related` 位置参数与 `-k/--max-snippet-lines/--format/--content` 标志均未变，无破坏性变更，无需吸收代码。上游新增子命令（`install`/`uninstall`/`savings`，其中 `savings` 已由本插件 `/semble savings` 报表接管）。
+> 本轮实际吸收（3.0.5）：上游在多仓库检索时会在 JSON 顶层附 `repos`（标签 → 源路径，git 地址对应其临时 clone）；`lib/tools.js` 现在解析该字段并在输出头追加 `Sources: <标签> → <路径>`，否则 git 地址仓库的命中无法打开。
 
 ## 结论（TL;DR）
 

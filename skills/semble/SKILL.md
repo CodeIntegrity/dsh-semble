@@ -34,7 +34,10 @@ Controls, all on both tools unless noted:
 - `repo` — **required**. The absolute path of the repository, or an `https://` URL of a git remote.
   In a session this is normally the session working directory, written the way the host writes paths
   (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search several
-  repositories at once. Omitting it fails validation, so always send it.
+  repositories at once; hit paths are then prefixed per repository and the
+  output ends its header with `Sources: <label> → <path>`. For a git URL the label only names the
+  temporary clone, so read those hits through the path in that line. Omitting `repo` fails
+  validation, so always send it.
 - `top_k` — default 5; raise it to 10–20 when the first pass misses.
 - `max_snippet_lines` — default 10; use `0` for locations only.
 - `content` — `code` (default), `docs`, `config`, or `all`; switch to `all` when the answer may live in documentation or configuration.

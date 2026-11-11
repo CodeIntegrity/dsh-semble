@@ -73,6 +73,9 @@ A typical exchange:
 
 - `repo` — **required**. Absolute path of the repository, or an `https://` git URL. A list searches
   several repositories at once.
+- With a list, hit paths are prefixed per repository and the output gains a
+  `Sources: <label> → <path>` line. Use that path for a git-URL hit: its label only names the
+  temporary clone upstream made for it.
 - `top_k` — default 5. Raise to 10–20 when the first pass misses.
 - `max_snippet_lines` — default 10; `0` returns locations only.
 - `content` — `code` (default), `docs`, `config`, or `all`.
