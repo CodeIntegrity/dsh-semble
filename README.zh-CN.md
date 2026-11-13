@@ -138,6 +138,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS / Linux
 | `args` | `--from 'semble[mcp]' semble` | 追加 `--content all` 让文档和配置也进索引 |
 | `args`（版本） | 浮动 | 改成 `semble[mcp]==X.Y.Z` 钉版本 |
 | `toolTimeoutMs` | `300000` | 首次调用要建索引并下载模型；想更快失败就调小 |
+| `defaultRepo` | 未设 | 调用省略 `repo` 时使用的绝对路径；调用一次后会自动复用上次的单个仓库 |
 | `env` | 空 | 受限网络加 `HF_ENDPOINT`；搬索引加 `SEMBLE_CACHE_LOCATION` |
 
 改设置会重新应用插件（重注册两个工具）；磁盘上的索引缓存不受影响。

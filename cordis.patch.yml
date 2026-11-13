@@ -44,6 +44,10 @@
         # the first call even though the CLI is healthy. Five minutes covers a
         # cold start on a slow link; once an index exists, calls answer in
         # seconds and the higher ceiling costs nothing.
+        # `repo` is optional after the first call: the tool remembers the last
+        # single repository it searched. Set `defaultRepo` to an absolute path
+        # to let the very first call omit it too.
+        # defaultRepo: D:/work/repo
         toolTimeoutMs: 300000
         # No `env` defaults on purpose: the embedding model
         # (minishlab/potion-code-16M-v2) is fetched from huggingface.co unless the

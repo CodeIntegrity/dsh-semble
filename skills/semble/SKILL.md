@@ -1,6 +1,6 @@
 ---
 name: semble-code-search
-description: Find code by what it does, not by exact text. Use when you need to locate an implementation, a caller, or a related pattern in the current repository before editing, or when a plain text search returns too much noise.
+description: Use FIRST for "how/where does X work" or behaviour questions when no exact code identifier or file path is given in the prompt — do NOT guess keywords for grep. Also use when grep/ops is noisy/empty, or to find callers and tests before editing (代码语义搜索：提问未直接给出精确符号/路径时优先调用，勿凭猜测关键词 grep).
 ---
 
 # Semble code search
@@ -12,15 +12,25 @@ Semantic search over code, registered by the dsh-semble plugin as two native too
 
 ## When to use it
 
-Use it when you know *what* you are looking for but not *where* it is:
+Call `semble_search` **first** (instead of guessing keywords for `grep`) whenever you know *what*
+behaviour you are looking for but not *where* or under *what symbol name* it lives:
 
-- "where is the retry policy applied when a request fails"
-- "which module decides the scoring weights"
-- "what else implements this provider interface"
+1. **Behaviour / architecture questions**: "where is the retry policy applied when a request fails",
+   "how are child process outputs capped without splitting multi-byte UTF-8 characters",
+   "which module decides the scoring weights".
+2. **Unfamiliar repository exploration**: locating the entry point, data flow, or error-handling path
+   before planning a change.
+3. **Immediate fallback after a failed or noisy `grep`/`glob`**: if a text search returns 0 hits or
+   dozens of irrelevant matches, switch to `semble_search` immediately rather than guessing more
+   keywords.
+4. **Pre-edit impact & sibling discovery (`semble_find_related`)**: once you have a target `file:line`,
+   call `semble_find_related` to find parallel implementations, callers, or tests before editing.
 
-Prefer the `grep` and `read` tools when you already have a path, an exact identifier, or a
-short literal to match — the semantic index is a coarse first pass, not a replacement for
-reading the code.
+**When NOT to use it (stay with `grep` / `glob` / `read`)**:
+- The user prompt **already gives** the exact file path (`lib/cli.js`), an exact code identifier (`DEFAULT_MAX_CONCURRENT`),
+  or a verbatim error string literal to match.
+- Natural-language concepts in a question (e.g. "truncation", "Chinese characters", "retry") are **not**
+  exact identifiers — do **not** translate them into guessed `grep` keywords; call `semble_search` first.
 
 ## How to query well
 

@@ -156,6 +156,7 @@ every call):
 | `args` | `--from 'semble[mcp]' semble` | append `--content all` to index docs and config too |
 | `args` (version) | floating | `semble[mcp]==X.Y.Z` pins a release |
 | `toolTimeoutMs` | `300000` | the first call builds the index and downloads the model; lower it to fail faster |
+| `defaultRepo` | unset | absolute path used when a call omits `repo`; after one call the last single repository is reused automatically |
 | `env` | empty | `HF_ENDPOINT` on restricted networks, `SEMBLE_CACHE_LOCATION` to move the index |
 
 Changing settings re-applies the plugin (re-registering the two tools); disk index caches survive.

@@ -47,6 +47,8 @@ test('parseToolConfig falls back to shipped defaults', () => {
     args: SEMBLE_UVX_PREFIX,
     env: {},
     toolTimeoutMs: DEFAULT_TOOL_TIMEOUT_MS,
+    defaultRepo: null,
+    lastRepo: null,
   })
   assert.deepEqual(parseToolConfig('nonsense'), parseToolConfig(undefined))
   assert.deepEqual(parseToolConfig([]), parseToolConfig(undefined))
@@ -220,8 +222,8 @@ test('createSembleTools yields exactly the two registry-ready definitions', () =
     assert.deepEqual(definition.output.render(null, 'text'), [{ type: 'text', text: 'text' }])
     assert.equal(typeof definition.execute, 'function')
   }
-  assert.deepEqual(search.parameters.required, ['query', 'repo'])
-  assert.deepEqual(findRelated.parameters.required, ['path', 'line', 'repo'])
+  assert.deepEqual(search.parameters.required, ['query'])
+  assert.deepEqual(findRelated.parameters.required, ['path', 'line'])
   assert.deepEqual(
     Object.keys(search.parameters.properties).sort(),
     ['content', 'max_snippet_lines', 'query', 'repo', 'top_k'],
@@ -294,4 +296,32 @@ test('execute rejects a repo-less call before spawning anything', async () => {
   await assert.rejects(() => search.execute({ query: 'q' }), /repo must be/)
   const [, findRelated] = standInTools('')
   await assert.rejects(() => findRelated.execute({ path: 'a.ts', line: 1 }), /repo must be/)
+})
+
+test('an omitted repo reuses the last single repository', async () => {
+  const [search] = standInTools(`console.log(JSON.stringify(${JSON.stringify(CLI_SHAPE)}))`)
+  await search.execute({ query: 'first', repo: 'D:\\work\\repo' })
+  const text = await search.execute({ query: 'second' })
+  assert.match(text, /in D:\\work\\repo:/)
+})
+
+test('config.defaultRepo backs a repo-less first call', async () => {
+  const [search] = standInTools(`console.log(JSON.stringify(${JSON.stringify(CLI_SHAPE)}))`, { defaultRepo: 'D:\\work\\default' })
+  const text = await search.execute({ query: 'q' })
+  assert.match(text, /in D:\\work\\default:/)
+})
+
+test('a multi-repo call does not replace the remembered repository', async () => {
+  const [search] = standInTools(`console.log(JSON.stringify(${JSON.stringify(CLI_SHAPE)}))`)
+  await search.execute({ query: 'first', repo: 'D:\\work\\a' })
+  await search.execute({ query: 'multi', repo: ['D:\\work\\a', 'D:\\work\\b'] })
+  const text = await search.execute({ query: 'third' })
+  assert.match(text, /in D:\\work\\a:/)
+})
+
+test('find-related also reuses the remembered repository', async () => {
+  const [, findRelated] = standInTools(`console.log(JSON.stringify(${JSON.stringify(CLI_SHAPE)}))`)
+  await findRelated.execute({ path: 'a.ts', line: 1, repo: 'D:\\work\\repo' })
+  const text = await findRelated.execute({ path: 'b.ts', line: 2 })
+  assert.match(text, /in D:\\work\\repo:/)
 })

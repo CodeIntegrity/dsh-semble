@@ -98,6 +98,19 @@ describe('runSemble', () => {
     assert.equal(result.code, null)
   })
 
+  it('escalates to SIGKILL when the child ignores SIGTERM', async () => {
+    // Windows reports a kill as an exit code instead of a signal, so only the
+    // POSIX run observes the escalation; both must still settle as timedOut.
+    const trap = process.platform === 'win32' ? '' : "process.on('SIGTERM', () => {})"
+    const result = await runSemble([`${trap}; setTimeout(() => {}, 60_000)`], {
+      command: process.execPath,
+      prefix: NODE_PREFIX,
+      timeoutMs: 200,
+    })
+    assert.equal(result.timedOut, true)
+    if (process.platform !== 'win32') assert.equal(result.signal, 'SIGKILL')
+  })
+
   it('kills the child when the invocation is aborted', async () => {
     const controller = new AbortController()
     const pending = runSemble(['setTimeout(() => {}, 5000)'], {

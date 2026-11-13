@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.1.0 (2026-11-13)
+
+- Remember the last single repository: once a call names one `repo`, later
+  calls may omit it, and a multi-repo call is deliberately not remembered
+  (reusing one of several would silently narrow the next search). A new
+  `defaultRepo` setting backs the very first repo-less call; with neither
+  known, the CLI still rejects the call before spawning anything.
+- Tear down the whole child process tree on timeout or abort: POSIX children
+  lead their own process group so one signal reaches uvx's python worker, then
+  SIGTERM escalates to SIGKILL after `TERM_GRACE_MS`, and the runner settles
+  `FORCE_SETTLE_MS` after the kill so a child the OS will not reap cannot
+  strand a concurrency slot (`lib/cli.js`). Windows still terminates only the
+  direct child.
+- Route behaviour questions to the tools first: the skill description and both
+  tool descriptions now say to call `semble_search` before guessing grep
+  keywords, and to call `semble_find_related` once a `file:line` is known.
+- Extend `test/consistency.test.js` with a routing-scope suite that builds a
+  scenario table from this repository's own modules and asserts the skill,
+  tool descriptions and docs agree with it.
+- Rewrite `docs/upgrade-plan.md` as a kept audit and decision record
+  (baseline v3.0.6, 64 tests) instead of a stale to-do list.
+
 ## 3.0.6 (2026-11-13)
 
 - Bound concurrent Semble CLI subprocesses to `DEFAULT_MAX_CONCURRENT = 2` via
