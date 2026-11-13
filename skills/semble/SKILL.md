@@ -32,9 +32,10 @@ The query is matched against embedded function bodies, so phrase it as behaviour
 Controls, all on both tools unless noted:
 
 - `repo` — **required**. The absolute path of the repository, or an `https://` URL of a git remote.
-  In a session this is normally the session working directory, written the way the host writes paths
-  (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search several
-  repositories at once; hit paths are then prefixed per repository and the
+  In a session this is normally the session working directory (for a git worktree or sub-agent
+  worktree, pass that worktree's path rather than the main checkout), written the way the host
+  writes paths (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search
+  several repositories at once; hit paths are then prefixed per repository and the
   output ends its header with `Sources: <label> → <path>`. For a git URL the label only names the
   temporary clone, so read those hits through the path in that line. Omitting `repo` fails
   validation, so always send it.

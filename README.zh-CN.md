@@ -194,7 +194,7 @@ git 地址同理，首次会 clone 进缓存。每个仓库各有一份索引；
 | `/semble file-types` | Semble 会索引的扩展名，按内容类型分组的 JSON |
 | `/semble version` | `uvx` 解析到的 Semble 版本——最快的安装自检 |
 | `/semble clear index` | 清掉索引缓存；下一次检索会重新建索引 |
-| `/semble clear orphans` | 只删除源路径已不存在的索引 |
+| `/semble clear orphans` | 只删除源路径已不存在的索引（适合在 DSH 清理归档的 git worktree 后使用） |
 | `/semble clear savings` | 重置 token 节省统计 |
 | `/semble clear all` | 以上全部 |
 

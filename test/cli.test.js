@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 
-import { CAPTURE_LIMIT_BYTES, parseSembleArgs, runSemble, SEMBLE_USAGE } from '../lib/cli.js'
+import {
+  CAPTURE_LIMIT_BYTES,
+  DEFAULT_MAX_CONCURRENT,
+  parseSembleArgs,
+  runSemble,
+  SEMBLE_USAGE,
+} from '../lib/cli.js'
 
 /** `node -e <script>` is a portable stand-in for `uvx --from semble[mcp] semble`. */
 const NODE_PREFIX = ['-e']
@@ -125,12 +134,95 @@ describe('runSemble', () => {
   })
 
   it('passes the caller environment through to the child', async () => {
-    const script = 'console.log(process.env.DSH_SEMBLE_PROBE, process.env.NO_COLOR)'
+    const script =
+      'console.log(process.env.DSH_SEMBLE_PROBE, process.env.NO_COLOR, process.env.PYTHONUTF8, process.env.PYTHONIOENCODING)'
     const result = await runSemble([script], {
       command: process.execPath,
       prefix: NODE_PREFIX,
       env: { DSH_SEMBLE_PROBE: '42' },
     })
-    assert.equal(result.stdout.trim(), '42 1')
+    assert.equal(result.stdout.trim(), '42 1 1 utf-8')
+  })
+
+  it('bounds concurrent invocations to DEFAULT_MAX_CONCURRENT', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-semble-conc-'))
+    const traceFile = join(dir, 'trace.txt')
+    const script = [
+      'const fs = require("node:fs");',
+      'fs.appendFileSync(process.env.TRACE_FILE, "+");',
+      'setTimeout(() => { fs.appendFileSync(process.env.TRACE_FILE, "-"); }, 80);',
+    ].join(' ')
+
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          runSemble([script], {
+            command: process.execPath,
+            prefix: NODE_PREFIX,
+            env: { TRACE_FILE: traceFile },
+          }),
+        ),
+      )
+
+      assert.equal(results.every((r) => r.code === 0), true)
+      const trace = readFileSync(traceFile, 'utf8')
+      let active = 0
+      let peak = 0
+      for (const ch of trace) {
+        if (ch === '+') {
+          active += 1
+          if (active > peak) peak = active
+        } else if (ch === '-') {
+          active -= 1
+        }
+      }
+      assert.equal(trace.length, 8)
+      assert.equal(active, 0)
+      assert.ok(peak <= DEFAULT_MAX_CONCURRENT, `expected peak <= ${DEFAULT_MAX_CONCURRENT}, got ${peak}`)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('aborts a queued invocation without spawning or leaking a slot', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-semble-abort-queue-'))
+    const markerFile = join(dir, 'queued-ran.txt')
+    const holdScript = 'setTimeout(() => {}, 150)'
+    const queuedScript = `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`
+
+    try {
+      const holders = Array.from({ length: DEFAULT_MAX_CONCURRENT }, () =>
+        runSemble([holdScript], {
+          command: process.execPath,
+          prefix: NODE_PREFIX,
+        }),
+      )
+
+      const controller = new AbortController()
+      const queued = runSemble([queuedScript], {
+        command: process.execPath,
+        prefix: NODE_PREFIX,
+        signal: controller.signal,
+      })
+
+      controller.abort()
+      const queuedResult = await queued
+      assert.equal(queuedResult.aborted, true)
+      assert.equal(queuedResult.code, null)
+
+      const holderResults = await Promise.all(holders)
+      assert.equal(holderResults.every((r) => r.code === 0), true)
+
+      // Slot must still be healthy for a subsequent invocation.
+      const followUp = await runSemble(['process.stdout.write("ok")'], {
+        command: process.execPath,
+        prefix: NODE_PREFIX,
+      })
+      assert.equal(followUp.code, 0)
+      assert.equal(followUp.stdout, 'ok')
+      assert.throws(() => readFileSync(markerFile))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

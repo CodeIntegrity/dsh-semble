@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.6 (2026-11-13)
+
+- Bound concurrent Semble CLI subprocesses to `DEFAULT_MAX_CONCURRENT = 2` via
+  a zero-dependency FIFO semaphore in `lib/cli.js` (with `AbortSignal` queue
+  cancellation), preventing parallel tool or sub-agent calls from contending
+  on `uvx` environment setup, index locks, and embedding-model memory.
+- Set `PYTHONUTF8=1` and `PYTHONIOENCODING=utf-8` on child processes by default
+  so Windows Python writes UTF-8 to redirected output files instead of the
+  system code page (fixing garbled box-drawing/progress characters in
+  `/semble savings`).
+- Document git worktree `repo` path handling in `skills/semble/SKILL.md` and
+  `/semble clear orphans` usage for cleaned-up worktrees in both READMEs.
+
 ## 3.0.5 (2026-11-11)
 
 Track upstream `semble` 0.7.3 (PyPI, 2026-11-08) without pinning it.

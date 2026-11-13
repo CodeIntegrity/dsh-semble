@@ -215,7 +215,7 @@ in its CLI. The bundle registers `/semble` for them:
 | `/semble file-types` | the extensions Semble indexes, as JSON grouped by content type |
 | `/semble version` | the Semble release the `uvx` installation resolved — the quickest install check |
 | `/semble clear index` | drop the search index cache; the next search rebuilds it |
-| `/semble clear orphans` | remove only indexes whose source path no longer exists |
+| `/semble clear orphans` | remove only indexes whose source path no longer exists (handy after DSH cleans up archived git worktrees) |
 | `/semble clear savings` | reset the token-savings statistics |
 | `/semble clear all` | all of the above |
 
