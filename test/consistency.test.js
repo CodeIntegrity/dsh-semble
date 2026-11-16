@@ -12,10 +12,12 @@ import { fileURLToPath } from 'node:url'
 
 import { SEMBLE_UVX_PREFIX } from '../lib/cli.js'
 import { createSembleTools, DEFAULT_TOOL_TIMEOUT_MS, parseToolConfig } from '../lib/tools.js'
-import sembleBundle from '../lib/index.js'
+import sembleBundle, { Config } from '../lib/index.js'
 
 const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
 const skillMarkdown = readFileSync(new URL('../skills/semble/SKILL.md', import.meta.url), 'utf8')
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+const readmeZh = readFileSync(new URL('../README.zh-CN.md', import.meta.url), 'utf8')
 const cliSource = readFileSync(new URL('../lib/cli.js', import.meta.url), 'utf8')
 const toolsSource = readFileSync(new URL('../lib/tools.js', import.meta.url), 'utf8')
 const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
@@ -63,6 +65,20 @@ describe('cordis.patch.yml ↔ lib', () => {
     // registry and every `ctx.skills` access throws "without inject".
     assert.ok(Array.isArray(sembleBundle.inject), 'default export carries no inject array')
     assert.ok(sembleBundle.inject.includes('skills'))
+    assert.equal(sembleBundle.name, 'dsh-semble')
+    assert.equal(sembleBundle.Config, Config)
+  })
+
+  it('documents repo fallback consistently across both READMEs and the skill', () => {
+    for (const [label, doc] of [
+      ['README.md', readme],
+      ['README.zh-CN.md', readmeZh],
+      ['SKILL.md', skillMarkdown],
+    ]) {
+      assert.match(doc, /defaultRepo/, `${label} must mention defaultRepo`)
+      assert.doesNotMatch(doc, /Omitting `repo` fails|省略.*会失败/, `${label} still claims repo is always required`)
+      assert.doesNotMatch(doc, /append `--content all`|追加 `--content all`/, `${label} still suggests appending CLI flags to args`)
+    }
   })
 })
 

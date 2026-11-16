@@ -14,40 +14,43 @@
   <a href="https://github.com/CodeIntegrity/dsh-semble/commits/main"><img src="https://img.shields.io/github/last-commit/CodeIntegrity/dsh-semble.svg?style=flat-square" alt="last commit"></a>
   <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-0e7490.svg?style=flat-square" alt="topic: dsh-plugin"></a>
   <a href="#platform-notes"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg?style=flat-square" alt="platform: Windows, macOS, Linux"></a>
-  <a href="https://github.com/CodeIntegrity/dsh-semble/blob/main/package.json"><img src="https://img.shields.io/badge/node-%E2%89%A522-43853d.svg?style=flat-square&logo=node.js&logoColor=white" alt="node: >=22"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/blob/main/package.json"><img src="https://img.shields.io/badge/node-%E2%89%A524.9-43853d.svg?style=flat-square&logo=node.js&logoColor=white" alt="node: >=24.9"></a>
   <a href="#compatibility"><img src="https://img.shields.io/badge/dsh-%E2%89%A50.2.1--rc.2-4B32C3.svg?style=flat-square" alt="dsh: >=0.2.1-rc.2"></a>
 </p>
 
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
-`dsh-semble` brings [Semble](https://github.com/MinishLab/semble) — a code search engine built for
-agents — into each DSH session as two native tools: `semble_search` and `semble_find_related`. Since
-3.0.0 there is no MCP layer: the plugin registers the tools directly into the host's tool registry,
-and every call spawns the Semble CLI through `uvx`. `grep` needs a
-string you already know; this needs a description of behaviour — "where is the retry policy applied
-when a request fails", "which module decides the scoring weights". That is usually the moment an
-agent starts guessing file names. And because only the matched snippets come back instead of whole
-files, one query costs a fraction of the tokens of a grep-then-read detour: upstream benchmarks
-measure **~99% fewer tokens** than grep+read, at retrieval quality on par with code-specialized
-transformer retrievers.
+> **Ask about behaviour, not file names.** `dsh-semble` gives an agent two native tools —
+> `semble_search` and `semble_find_related` — that find code by describing what it *does*. Instead of
+> guessing a filename and grepping for it, the agent asks "where is the retry policy applied?" and
+> gets ranked `file:line` hits with snippets. Upstream benchmarks measure **~99% fewer tokens** than
+> grep + read, at retrieval quality on par with code-specialized transformer retrievers — figures from
+> the [Semble project](https://github.com/MinishLab/semble#benchmarks), not measured by this plugin.
+> Runs fully local on CPU — no API key, GPU, or external service.
 
-Under the hood, Semble splits every file into code-aware chunks with tree-sitter, then retrieves
-against two complementary signals: static **Model2Vec** embeddings (the code-specialized
-`potion-code-16M-v2` model) for semantic similarity, and **BM25** for lexical matches on identifiers
-and API names. The two result lists are fused with **Reciprocal Rank Fusion** (RRF), then re-ranked
-by code-aware signals: a chunk that *defines* the queried symbol outranks one that merely mentions
-it, query words matching identifier stems inside a chunk earn extra weight (`parse config →
-parseConfig / config_parser`), several hits from the same file promote the file as a whole, and
-test files, examples and compat shims are demoted so the canonical implementation surfaces first.
-The embedding model is static — no transformer forward pass at query time — so indexing a typical
-repo takes under a second and every query lands in milliseconds, entirely on CPU with no API key,
-GPU or external service. Indexes are cached to disk on first use and refreshed incrementally as
-files change; `https://` repositories are cloned on demand into the same cache.
+**In one minute:** need [uv](https://docs.astral.sh/uv/) on PATH → install `dsh-semble` from
+**Settings → Plugins → Install** → restart DSH once → ask your agent a "where/how does X work"
+question. The first call downloads the package and embedding model (~1–2 min); everything after is
+local. Details in [Install](#install).
 
-**Before first use.** The plugin runs on `uvx`, which must be on PATH, and the first call is
-online: it installs `semble[mcp]` from PyPI and downloads the `potion-code-16M-v2` model from
-huggingface.co. Indexing and queries run locally once that is done; if your network cannot reach
-huggingface.co, point `HF_ENDPOINT` at a mirror.
+## Contents
+
+- [What you get](#what-you-get)
+- [Using the tools](#using-the-tools)
+- [Install](#install)
+- [Settings](#settings)
+- [Tuning](#tuning)
+- [Commands](#commands)
+- [Platform notes](#platform-notes)
+- [Bundled skill](#bundled-skill)
+- [How it is wired](#how-it-is-wired)
+- [Update](#update)
+- [Compatibility](#compatibility)
+- [Uninstall](#uninstall)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Publishing](#publishing)
+- [License](#license)
 
 ## What you get
 
@@ -58,8 +61,7 @@ huggingface.co, point `HF_ENDPOINT` at a mirror.
 
 The bundle also registers one slash command, `/semble`, for the reporting subcommands the tools do
 not expose: `/semble savings`, `/semble file-types`, `/semble version` and
-`/semble clear <index|savings|orphans|all>`. See
-[Commands](#commands).
+`/semble clear <index|savings|orphans|all>`. See [Commands](#commands).
 
 A typical exchange:
 
@@ -69,16 +71,40 @@ A typical exchange:
 > `isEntryLoaded` comparing loader entry names against the package name, and answers from the source
 > rather than from a guess.
 
+### How it works
+
+Semble splits every file into code-aware chunks with tree-sitter, then retrieves against two
+complementary signals: static **Model2Vec** embeddings (the code-specialized
+`potion-code-16M-v2` model) for semantic similarity, and **BM25** for lexical matches on identifiers
+and API names. The two result lists are fused with **Reciprocal Rank Fusion** (RRF), then re-ranked
+by code-aware signals: a chunk that *defines* the queried symbol outranks one that merely mentions
+it, query words matching identifier stems inside a chunk earn extra weight (`parse config →
+parseConfig / config_parser`), several hits from the same file promote the file as a whole, and
+test files, examples and compat shims are demoted so the canonical implementation surfaces first.
+The embedding model is static — no transformer forward pass at query time — so (per the same upstream
+benchmarks) indexing a typical repo takes under a second and every query lands in milliseconds,
+entirely on CPU. Indexes are cached to disk on first use and refreshed incrementally as files change;
+`https://` repositories are cloned on demand into the same cache.
+
+**Before first use.** The plugin runs on `uvx`, which must be on PATH, and the first call is
+online: it installs `semble[mcp]` from PyPI and downloads the `potion-code-16M-v2` model from
+huggingface.co. Indexing and queries run locally once that is done; if your network cannot reach
+huggingface.co, point `HF_ENDPOINT` at a mirror.
+
 ## Using the tools
 
-- `repo` — **required**. Absolute path of the repository, or an `https://` git URL. A list searches
-  several repositories at once.
-- With a list, hit paths are prefixed per repository and the output gains a
-  `Sources: <label> → <path>` line. Use that path for a git-URL hit: its label only names the
-  temporary clone upstream made for it.
-- `top_k` — default 5. Raise to 10–20 when the first pass misses.
+- `query` / `path` + `line` — a behaviour sentence for `semble_search`; a known `file:line` for
+  `semble_find_related` (line is 1-indexed, path exactly as a search result showed it).
+- `repo` — **required on the first call** unless `defaultRepo` is set. Absolute path of the
+  repository, or an `https://` git URL. A list searches several repositories at once. After any
+  call naming a **single** repository, later calls may omit `repo` and reuse it automatically; a
+  multi-repo call is deliberately not remembered, since reusing one of several would silently
+  narrow the next search. See [Settings](#settings) and
+  [Several repositories](#several-repositories).
+- `top_k` — number of results, **1–100**; default 5. Raise to 10–20 when the first pass misses.
 - `max_snippet_lines` — default 10; `0` returns locations only.
-- `content` — `code` (default), `docs`, `config`, or `all`.
+- `content` — a **list** of content types: `code` (default), `docs`, `config`, `all`; pass
+  `["all"]` to index docs and config as well. Multiple values are deduplicated.
 
 The first query against a repository builds its index (slow, one-time); later queries reuse it.
 Hits are ranked by similarity. Search scores are rank-fusion values that stay small (`0.0x`) even
@@ -95,7 +121,7 @@ for exactly-relevant code — treat them as a relative ordering, not an absolute
 dsh-semble
 ```
 
-Pin a version with `dsh-semble@3.0.0`. The settings page is the only supported route for the
+Pin a version with `dsh-semble@3.2.0`. The settings page is the only supported route for the
 `desktop` profile — the CLI refuses it because the Electron app owns that profile's `node_modules`
 and lockfile.
 
@@ -131,7 +157,8 @@ without reinstalling.
 
 ### Prerequisites
 
-[uv](https://docs.astral.sh/uv/) must be on PATH — `uvx` launches Semble from PyPI:
+[uv](https://docs.astral.sh/uv/) must be on PATH — `uvx` launches Semble from PyPI. Node.js
+`>=24.9` is required by the host (see [Compatibility](#compatibility)).
 
 ```powershell
 winget install astral-sh.uv                      # Windows
@@ -152,21 +179,21 @@ every call):
 
 | Field | Default | Why change it |
 | --- | --- | --- |
-| `command` | `uvx` | point it at `uvx.exe` if only a `.cmd` shim is installed |
-| `args` | `--from 'semble[mcp]' semble` | append `--content all` to index docs and config too |
-| `args` (version) | floating | `semble[mcp]==X.Y.Z` pins a release |
-| `toolTimeoutMs` | `300000` | the first call builds the index and downloads the model; lower it to fail faster |
-| `defaultRepo` | unset | absolute path used when a call omits `repo`; after one call the last single repository is reused automatically |
-| `env` | empty | `HF_ENDPOINT` on restricted networks, `SEMBLE_CACHE_LOCATION` to move the index |
+| `command` / `args` | `uvx` / `--from 'semble[mcp]' semble` | point `command` at `uvx.exe` if only a `.cmd` shim is installed; use `semble[mcp]==X.Y.Z` in `args` to pin a release. Both tools **and** `/semble` use these values. To search docs/config, pass `content: ["all"]` or set `defaultContent` — do not append CLI flags to `args` |
+| `toolTimeoutMs` | `300000` | call ceiling for both tools and `/semble`; lower it to fail faster |
+| `defaultContent` | `[code]` | content types used when a tool call omits `content`, e.g. `[all]` or `[code, docs]` |
+| `maxConcurrent` | `2` | cap on simultaneous CLI children; raise only when the machine can afford parallel index builds |
+| `defaultRepo` | unset | absolute path used on the **first** repo-less call; after any single-repo call the last repository is reused automatically |
+| `env` | empty | `HF_ENDPOINT` on restricted networks, `SEMBLE_CACHE_LOCATION` to move the index; applied to both tools and `/semble` |
 
-Changing settings re-applies the plugin (re-registering the two tools); disk index caches survive.
+Changing settings re-applies the plugin (re-registering the tools and command); disk index caches survive.
+A value of the wrong type fails validation and the row stops loading — fix the field and re-apply.
 
 ## Tuning
 
-Semble reads its configuration from the environment of the process that runs it. For the search
-tools, put these in the `env` field of the plugin `config`. `/semble` spawns a separate process and
-inherits the host environment instead, so export a value in both places when a report must agree
-with search — `SEMBLE_CACHE_LOCATION` is the one that matters.
+Semble reads its configuration from the environment of the process that runs it. Put overrides in
+the `env` field of the plugin `config`; both the search tools and `/semble` now launch through that
+same runner, so a report and a search see the same `SEMBLE_*` values.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
@@ -176,6 +203,12 @@ with search — `SEMBLE_CACHE_LOCATION` is the one that matters.
 | `SEMBLE_MAX_FILE_BYTES` | `1000000` | files above this size are skipped; raise it for generated code worth indexing |
 | `SEMBLE_CLONE_TIMEOUT` | `60` | seconds allowed for cloning an `https://` repository |
 | `HF_ENDPOINT` | `https://huggingface.co` | mirror used for the one-time model download |
+
+Concurrent Semble CLI processes are capped by an in-process FIFO semaphore (default **2**, set
+`maxConcurrent` to change it), so parallel tool or sub-agent calls do not contend on `uvx` setup,
+index locks and embedding-model memory. On POSIX a timed-out or aborted call tears down the whole
+child process tree (SIGTERM, then SIGKILL after a short grace); on Windows only the direct child is
+terminated.
 
 ### Excluding files
 
@@ -203,7 +236,10 @@ the plugin settings free of per-repository rules.
 ```
 
 Git URLs work the same way and are cloned once into the cache. Each repository gets its own index; a
-list costs one first-time index build per repository.
+list costs one first-time index build per repository. Hit paths are prefixed per repository and the
+output ends with a `Sources: <label> → <path>` line. Use that path for a git-URL hit: its label only
+names the temporary clone upstream made for it. A multi-repo call is not remembered as the default
+for the next call (see [Using the tools](#using-the-tools)).
 
 ## Commands
 
@@ -260,9 +296,8 @@ DSH loads skills lazily:
 | You type `/semble-code-search` | same body, injected into that step | manual |
 
 `/semble-code-search` loads *instructions*: the search itself still runs through the two native
-tools. The
-real executable command is `/semble` (see [Commands](#commands)), which runs a CLI report in the host
-and costs no model tokens.
+tools. The real executable command is `/semble` (see [Commands](#commands)), which runs a CLI report in the
+host and costs no model tokens.
 
 The body never enters the system prompt. To keep the tools and drop the skill, delete the
 `ctx.skills.register(...)` block in `lib/index.js`; `/semble` keeps working because it is registered
@@ -284,11 +319,11 @@ the CLI surface would need an edit here.
 Re-run the install with a newer version, or press 更新 in settings:
 
 ```sh
-dsh plugin --profile web add dsh-semble@3.0.0
+dsh plugin --profile web add dsh-semble@3.2.0
 ```
 
 Source installs re-run with the new ref, e.g.
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v3.0.0`.
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v3.2.0`.
 
 ## Compatibility
 
@@ -299,15 +334,17 @@ The package follows semver. The public surface, which 3.x keeps stable:
 - the plugin entry: the default export and the named `apply` from `dsh-semble`, receiving
   `(ctx, config)` — `config` is the loader row's `config`, coerced by the plugin; the context
   carries `skills` and optionally `inject`/`tools`/`commands`;
-- the `/semble` subcommand allow-list (`savings`, `file-types`, `version`) and its result shape
+- the `/semble` subcommand allow-list (`savings`, `file-types`, `version`, `clear`) and its result shape
   (`{ kind: 'success' | 'error', text }`);
+- the plugin settings `command`, `args`, `toolTimeoutMs`, `defaultRepo`, `defaultContent`,
+  `maxConcurrent` and `env`, and the exported Standard Schema `Config`;
 - the exports `./locale/*.json`, `./icon`, and `./package.json`.
 
 Not covered by the promise: row ids and launch details inside `cordis.patch.yml` (they are host
 wiring, not API), the routing skill's name and body, and everything under `lib/` except the entry
 point — tests may import `parseSembleArgs`/`runSemble`, but downstream packages should not.
-The default `engines` requirement (`node` and `dsh`) only widens within a major version; a raised
-minimum is a minor bump at most, since installs resolve through the package manager.
+The default `engines` requirement (`node >=24.9` and `dsh >=0.2.1-rc.2`) only widens within a major
+version; a raised minimum is a minor bump at most, since installs resolve through the package manager.
 
 **2.x → 3.0.0**: the MCP bridge is gone. The tools are renamed from
 `mcp__semble__search` / `mcp__semble__find_related` to `semble_search` / `semble_find_related`, and
@@ -326,6 +363,34 @@ so the index cache can be dropped from within a session; the target word is requ
 **3.0.2 → 3.0.3**: docs only — the routing skill's *if the tools are missing* section now names the
 usual cause of a CLI launch failure (`uv` absent from the host's PATH) and the Windows `uvx.cmd`
 shim workaround, so the triage loop closes inside the skill instead of the README. No code changes.
+
+**3.0.3 → 3.0.4**: aligns engine declarations with DSH 0.2.2-alpha.2, raising `engines.node` from
+`>=22` to `>=24.9` and `@types/node` from `^22` to `^24`. No runtime code changes.
+
+**3.0.4 → 3.0.5**: tracks upstream `semble` 0.7.3 without pinning it. `semble_search` output now
+ends with a `Sources: <label> → <path>` line from the upstream `repos` map, which is what makes
+git-URL hits openable. The CLI contract is otherwise unchanged.
+
+**3.0.5 → 3.0.6**: caps concurrent CLI subprocesses at 2 via a zero-dependency FIFO semaphore, sets
+`PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8` on children so Windows writes UTF-8 to redirected output,
+and documents `/semble clear orphans` for cleaned-up git worktrees.
+
+**3.0.6 → 3.1.0**: a single-repo call is remembered so later calls may omit `repo` (a multi-repo call
+is not); a new `defaultRepo` setting backs the first repo-less call. Timeout/abort now tears down the
+whole child process tree on POSIX (SIGTERM → SIGKILL, Windows still kills only the direct child). The
+skill and both tool descriptions now route behaviour questions to the tools before guessing grep
+keywords.
+
+**3.1.0 → 3.1.1**: commits `pnpm-lock.yaml` so pnpm users resolve the same dev-dependency versions
+CI installs, and ignores the `test` path in `.gitignore`. No API changes.
+
+**3.1.1 → 3.2.0**: adds the `defaultContent` and `maxConcurrent` settings; `/semble` now uses the
+plugin's `command` / `args` / `env` / `toolTimeoutMs` settings, so the Windows `uvx.exe` fix and cache
+overrides apply to reports as well as to search. CI and publishing move to Node `24.9`. The exported
+`Config` schema now reports malformed fields as issues instead of silently passing them through;
+an issue stops the row from loading, so a settings typo appears as a failed plugin row rather than
+a quiet fallback to a default. No breaking API changes: the two tools, the `/semble` allow-list and
+the entry signature are unchanged, and omitted new settings keep their defaults.
 
 ## Uninstall
 
@@ -352,8 +417,8 @@ The cached index and the HuggingFace model stay on disk and are reused after a r
 | Search fails with "did not finish within …" | index build + model download outran `toolTimeoutMs` | raise `toolTimeoutMs` in the plugin settings, or warm the cache once with a CLI search |
 | Search fails with "The Semble CLI could not be started" | `uvx` is not on the host's PATH | install uv, restart DSH; on Windows with only a `.cmd` shim, set `command` to `uvx.exe` |
 | Search looks stale after a large refactor | the disk index reuses files it believes unchanged | `uvx --from "semble[mcp]" semble clear index`, then search again |
-| `/semble` answers "Could not start the Semble CLI" | `uvx` is not on the host's PATH | install uv, restart DSH |
-| `savings` counts fewer calls than you made | the report reads the cache location, which `/semble` does not take from the plugin `env` | set `SEMBLE_CACHE_LOCATION` in the host environment as well |
+| `/semble` answers "Could not start the Semble CLI" | `uvx` is not on the host's PATH, or `command` is misconfigured | install uv, restart DSH; on Windows with only a `.cmd` shim, set `command` to `uvx.exe` |
+| `savings` counts fewer calls than you made | `SEMBLE_CACHE_LOCATION` differs between the CLI you ran by hand and the plugin runner | set `SEMBLE_CACHE_LOCATION` in the plugin `env` so tools and `/semble` agree |
 | `ERR_PNPM_GIT_RESOLVE_FAILED` | no network route to github.com | use a tarball URL or a mirror |
 
 ## Development
@@ -363,8 +428,8 @@ git clone https://github.com/CodeIntegrity/dsh-semble
 dsh plugin --profile web add link:$(pwd)   # then edit and restart DSH
 ```
 
-No build step: `lib/` is plain ESM and `cordis.patch.yml` is read directly. The only runtime
-dependency is `uv`.
+Requires Node.js `>=24.9` (matching the host floor). No build step: `lib/` is plain ESM and
+`cordis.patch.yml` is read directly. The only runtime dependency is `uv`.
 
 `npm test` runs the suite with Node's built-in runner. The spawn tests replace `uvx` with the Node
 binary, so they neither download Semble nor touch your cache. `npm run typecheck` runs `tsc` in

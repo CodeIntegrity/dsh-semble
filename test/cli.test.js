@@ -197,6 +197,45 @@ describe('runSemble', () => {
     }
   })
 
+  it('honors a custom maxConcurrent limit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-semble-conc-one-'))
+    const traceFile = join(dir, 'trace.txt')
+    const script = [
+      'const fs = require("node:fs");',
+      'fs.appendFileSync(process.env.TRACE_FILE, "+");',
+      'setTimeout(() => { fs.appendFileSync(process.env.TRACE_FILE, "-"); }, 60);',
+    ].join(' ')
+
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 3 }, () =>
+          runSemble([script], {
+            command: process.execPath,
+            prefix: NODE_PREFIX,
+            env: { TRACE_FILE: traceFile },
+            maxConcurrent: 1,
+          }),
+        ),
+      )
+      assert.equal(results.every((r) => r.code === 0), true)
+      const trace = readFileSync(traceFile, 'utf8')
+      let active = 0
+      let peak = 0
+      for (const ch of trace) {
+        if (ch === '+') {
+          active += 1
+          peak = Math.max(peak, active)
+        } else {
+          active -= 1
+        }
+      }
+      assert.equal(peak, 1)
+      assert.equal(active, 0)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('aborts a queued invocation without spawning or leaking a slot', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-semble-abort-queue-'))
     const markerFile = join(dir, 'queued-ran.txt')

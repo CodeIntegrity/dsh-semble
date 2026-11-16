@@ -41,21 +41,25 @@ The query is matched against embedded function bodies, so phrase it as behaviour
 
 Controls, all on both tools unless noted:
 
-- `repo` — **required**. The absolute path of the repository, or an `https://` URL of a git remote.
-  In a session this is normally the session working directory (for a git worktree or sub-agent
-  worktree, pass that worktree's path rather than the main checkout), written the way the host
-  writes paths (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search
-  several repositories at once; hit paths are then prefixed per repository and the
-  output ends its header with `Sources: <label> → <path>`. For a git URL the label only names the
-  temporary clone, so read those hits through the path in that line. Omitting `repo` fails
-  validation, so always send it.
+- `repo` — **required on the first call** unless the plugin's `defaultRepo` setting is set. Use the
+  absolute path of the repository, or an `https://` URL of a git remote. In a session this is
+  normally the session working directory (for a git worktree or sub-agent worktree, pass that
+  worktree's path rather than the main checkout), written the way the host writes paths
+  (`D:\work\repo` on Windows, `/home/me/repo` on macOS/Linux). Pass a list to search several
+  repositories at once; hit paths are then prefixed per repository and the output ends its header
+  with `Sources: <label> → <path>`. For a git URL the label only names the temporary clone, so read
+  those hits through the path in that line. After any call naming a **single** repository, later
+  calls may omit `repo` and reuse it; a multi-repo call is deliberately not remembered.
 - `top_k` — default 5; raise it to 10–20 when the first pass misses.
 - `max_snippet_lines` — default 10; use `0` for locations only.
-- `content` — `code` (default), `docs`, `config`, or `all`; switch to `all` when the answer may live in documentation or configuration.
+- `content` — a **list** of `code` (default), `docs`, `config`, or `all`; pass `["all"]` when the
+  answer may live in documentation or configuration. The plugin's `defaultContent` setting changes
+  what is used when this argument is omitted.
 
 ## Workflow
 
-1. `semble_search` with a behaviour phrase, always passing `repo`.
+1. `semble_search` with a behaviour phrase; pass `repo` on the first call (or rely on `defaultRepo` /
+   the remembered single repository), then use the `content` argument rather than guessing grep keywords.
 2. Open the top hit with the `read` tool, using its `start_line` as `offset`, to confirm it is the
    right code and not a similarity artifact. Pass the returned path through exactly as given — it
    keeps `\` separators on Windows and is already POSIX on macOS/Linux. Rewriting separators by hand

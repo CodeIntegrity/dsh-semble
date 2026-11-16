@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.2.0 (2026-11-16)
+
+- Align CI and publishing with `engines.node >=24.9`; the publish job now runs
+  `npm ci` and typecheck before `npm publish`.
+- `/semble` now uses the plugin's `command` / `args` / `env` / `toolTimeoutMs`
+  settings, so the Windows `uvx.exe` fix and cache overrides apply to reports
+  as well as to the search tools.
+- Add `defaultContent` and `maxConcurrent` settings. Per-call `content` still
+  wins over `defaultContent`; remove the invalid advice about appending
+  `--content all` to `args`.
+- Sync README.md, README.zh-CN.md and the bundled skill with the actual
+  repo-fallback semantics (first call needs `repo` or `defaultRepo`; later
+  calls may reuse the last single repository).
+- Add a zero-dependency Standard Schema `Config`, align the default export's
+  `name` with the loader name, and stop ignoring new files under `test/` in
+  `.gitignore`.
+- Make `Config` validation real: it now reports malformed fields as Standard
+  Schema `issues` (via a strict `validateToolConfig`) instead of always passing
+  through. Those issues are fatal — Cordis raises a ValidationError and does not
+  load the row, so a typo shows up as a failed plugin row instead of quietly
+  becoming a default. `parseToolConfig` keeps its tolerant fallbacks for direct
+  callers and tests, and validation no longer rewrites the config it hands back
+  (that double normalization made every load warn about `defaultRepo`).
+- Attribute the `~99% fewer tokens` and sub-second/millisecond figures in both
+  READMEs to the upstream Semble benchmarks rather than implying they were
+  measured by this plugin.
+- `max_snippet_lines: 0` now renders the `file:line` header alone instead of an
+  empty code fence, and a failed call names the repositories it searched, since
+  "No chunk found" usually means a stale remembered repository rather than a
+  bad path.
+
 ## 3.1.1 (2026-11-16)
 
 - Commit `pnpm-lock.yaml` alongside `package-lock.json` so pnpm users resolve

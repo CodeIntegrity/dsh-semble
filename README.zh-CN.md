@@ -7,39 +7,48 @@
 <p align="center">
   <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="Awesome DSH Plugin"></a>
   <a href="https://dsh-plugin.org/plugins/codeintegrity/dsh-semble"><img src="https://dsh-plugin.org/badges/listed.svg" alt="Listed on dsh-plugin.org"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="许可证：MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/许可证-MIT-blue.svg?style=flat-square" alt="许可证：MIT"></a>
   <a href="https://www.npmjs.com/package/dsh-semble"><img src="https://img.shields.io/npm/v/dsh-semble.svg?style=flat-square" alt="npm 版本"></a>
   <a href="https://github.com/CodeIntegrity/dsh-semble/actions/workflows/ci.yml"><img src="https://github.com/CodeIntegrity/dsh-semble/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 状态"></a>
   <a href="https://github.com/CodeIntegrity/dsh-semble/stargazers"><img src="https://img.shields.io/github/stars/CodeIntegrity/dsh-semble.svg?style=flat-square" alt="GitHub stars"></a>
   <a href="https://github.com/CodeIntegrity/dsh-semble/commits/main"><img src="https://img.shields.io/github/last-commit/CodeIntegrity/dsh-semble.svg?style=flat-square" alt="最近提交"></a>
   <a href="https://github.com/topics/dsh-plugin"><img src="https://img.shields.io/badge/topic-dsh--plugin-0e7490.svg?style=flat-square" alt="topic: dsh-plugin"></a>
   <a href="#平台差异"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg?style=flat-square" alt="平台：Windows / macOS / Linux"></a>
-  <a href="https://github.com/CodeIntegrity/dsh-semble/blob/main/package.json"><img src="https://img.shields.io/badge/node-%E2%89%A522-43853d.svg?style=flat-square&logo=node.js&logoColor=white" alt="node: >=22"></a>
+  <a href="https://github.com/CodeIntegrity/dsh-semble/blob/main/package.json"><img src="https://img.shields.io/badge/node-%E2%89%A524.9-43853d.svg?style=flat-square&logo=node.js&logoColor=white" alt="node: >=24.9"></a>
   <a href="#兼容性"><img src="https://img.shields.io/badge/dsh-%E2%89%A50.2.1--rc.2-4B32C3.svg?style=flat-square" alt="dsh: >=0.2.1-rc.2"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-`dsh-semble` 把 [Semble](https://github.com/MinishLab/semble) ——一个专为 agent 打造的代码检索引擎
-——接进 DSH 会话，以两个原生工具的形式出现：`semble_search` 与 `semble_find_related`。从 3.0.0 起
-不再经过 MCP 层：插件直接向宿主工具注册表注册，每次调用经 `uvx` 拉起 Semble CLI。`grep` 要求你手里已经
-有了一个字符串；它要的是一句行为描述——「请求失败时重试策略在哪生效」「哪个模块决定了打分权重」。
-而这种时刻，agent 通常正好开始猜文件名。而且它只返回命中的片段而不是整个文件，单次检索的 token
-开销远低于「先 grep 再整读文件」的路径——按上游 benchmark，比 grep+read 平均省约 99% 的 token，
-检索质量与代码专用的 transformer 检索模型持平。
+> **按行为提问，别猜文件名。** `dsh-semble` 给 agent 两个原生工具——`semble_search` 与
+> `semble_find_related`——通过描述代码「做什么」来找到它。agent 不再猜一个文件名然后去 grep，而是问
+> 「请求失败时重试策略在哪生效」，拿回按相关度排序的 `file:line` 命中与片段。上游 benchmark 测得比
+> grep + 整读文件省约 **99% 的 token**，检索质量与代码专用的 transformer 检索模型持平——数据来自
+> [Semble 项目](https://github.com/MinishLab/semble#benchmarks)，非本插件实测。全程 CPU 本地
+> 运行——不需要 API key、GPU 或外部服务。
 
-**怎么实现的。** Semble 先用 tree-sitter 把每个文件切成代码感知的分块，检索时叠加两套互补信号：
-静态 Model2Vec 嵌入（代码专用模型 `potion-code-16M-v2`）负责语义相似度，BM25 负责标识符与 API 名
-的词法命中；两份结果用 Reciprocal Rank Fusion（RRF）融合，再按代码感知的规则重排——定义了查询符号
-的分块排在只提到它的前面，查询词在分块内以标识符词干出现（`parse config` → `parseConfig` /
-`config_parser`）会被加分，同一文件多个分块命中会提升整个文件，而测试文件、示例与兼容垫片被降权，
-让正式的实现先冒出来。嵌入模型是静态的，查询时没有 transformer 前向计算，所以给普通仓库建索引
-不到一秒、每次查询只需毫秒，全程 CPU，不需要 API key、GPU 或外部服务。索引首次使用时写入磁盘缓存，
-之后随文件改动增量刷新；`https://` 仓库按需 clone 进同一份缓存。
+**一分钟上手：** PATH 上装好 [uv](https://docs.astral.sh/uv/) → 在**设置 → 插件 → 安装**里装
+`dsh-semble` → 重启 DSH 一次 → 向 agent 提一个「X 在哪儿/怎么工作」的问题。首次调用会下载包与嵌入
+模型（约 1–2 分钟），之后全部本地完成。详见[安装](#安装)。
 
-**开始前须知。** 本插件运行时依赖 PATH 上的 `uvx`；首次调用需要联网——它会从 PyPI 安装
-`semble[mcp]`，再从 huggingface.co 下载 `potion-code-16M-v2` 模型，之后索引与查询都在本地完成。
-无法访问 huggingface.co 的内网环境，请先把 `HF_ENDPOINT` 指向可用的镜像站。
+## 目录
+
+- [你会得到什么](#你会得到什么)
+- [工具怎么用](#工具怎么用)
+- [安装](#安装)
+- [设置](#设置)
+- [调优](#调优)
+- [命令](#命令)
+- [平台差异](#平台差异)
+- [内置 skill](#内置-skill)
+- [bundle 装配](#bundle-装配)
+- [更新](#更新)
+- [兼容性](#兼容性)
+- [卸载](#卸载)
+- [常见问题](#常见问题)
+- [开发](#开发)
+- [发布](#发布)
+- [许可](#许可)
 
 ## 你会得到什么
 
@@ -49,8 +58,7 @@
 | `semble_find_related` | 一个你已经知道的位置 | 它的邻居：其他实现、调用方、测试 |
 
 另外还注册了一个 slash command：`/semble savings`、`/semble file-types`、`/semble version` 和
-`/semble clear <index|savings|orphans|all>`，用来跑
-工具没有暴露的 CLI 报表，见[命令](#命令)。
+`/semble clear <index|savings|orphans|all>`，用来跑工具没有暴露的 CLI 报表，见[命令](#命令)。
 
 一次典型对话：
 
@@ -59,12 +67,33 @@
 > **agent：** 调 `semble_search`，拿到插件清单模块的一条命中，用 `read` 打开，找到 `isEntryLoaded`
 > 把 loader 条目名和包名做比对，然后**基于源码**回答，而不是基于猜测。
 
+### 实现原理
+
+Semble 先用 tree-sitter 把每个文件切成代码感知的分块，检索时叠加两套互补信号：静态 Model2Vec
+嵌入（代码专用模型 `potion-code-16M-v2`）负责语义相似度，BM25 负责标识符与 API 名的词法命中；
+两份结果用 Reciprocal Rank Fusion（RRF）融合，再按代码感知的规则重排——定义了查询符号的分块排在
+只提到它的前面，查询词在分块内以标识符词干出现（`parse config` → `parseConfig` /
+`config_parser`）会被加分，同一文件多个分块命中会提升整个文件，而测试文件、示例与兼容垫片被降权，
+让正式的实现先冒出来。嵌入模型是静态的，查询时没有 transformer 前向计算，所以据同一份上游 benchmark，
+给普通仓库建索引不到一秒、每次查询只需毫秒，全程 CPU。索引首次使用时写入磁盘缓存，之后随文件改动
+增量刷新；`https://` 仓库按需 clone 进同一份缓存。
+
+**开始前须知。** 本插件运行时依赖 PATH 上的 `uvx`；首次调用需要联网——它会从 PyPI 安装
+`semble[mcp]`，再从 huggingface.co 下载 `potion-code-16M-v2` 模型，之后索引与查询都在本地完成。
+无法访问 huggingface.co 的内网环境，请先把 `HF_ENDPOINT` 指向可用的镜像站。
+
 ## 工具怎么用
 
-- `repo` —— **必填**。仓库绝对路径，或 `https://` git 地址；传数组可同时检索多个仓库。
-- `top_k` —— 默认 5，首轮没命中时提到 10–20。
+- `query` / `path` + `line` —— `semble_search` 传一句行为描述；`semble_find_related` 传已知的
+  `file:line`（行号从 1 开始，路径照检索结果原样填）。
+- `repo` —— **首次调用必填**（除非设了 `defaultRepo`）。仓库绝对路径，或 `https://` git 地址；
+  传数组可同时检索多个仓库。任何一次调用指定了**单个**仓库后，后续调用可以省略 `repo` 自动复用；
+  多仓库调用不会被记住，否则复用其中某一个会悄悄缩小下次检索范围。见[设置](#设置)与
+  [检索多个仓库](#检索多个仓库)。
+- `top_k` —— 结果数量，范围 **1–100**，默认 5；首轮没命中时提到 10–20。
 - `max_snippet_lines` —— 默认 10，`0` 只返回位置。
-- `content` —— `code`（默认）、`docs`、`config`、`all`。
+- `content` —— 内容类型**数组**：`code`（默认）、`docs`、`config`、`all`；传 `["all"]` 可把文档和
+  配置也纳入索引。传多个值时会自动去重。
 
 某个仓库的首次查询要建索引（慢，一次性），之后复用。命中按相似度排序；检索分数是排名融合值，
 即使命中的正是相关代码也只有 `0.0x` 量级——把它当**相对排序**看，不要当绝对置信度。空结果才是
@@ -80,7 +109,7 @@
 dsh-semble
 ```
 
-钉住版本写 `dsh-semble@3.0.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
+钉住版本写 `dsh-semble@3.2.0`。`desktop` profile 只支持从设置页安装——CLI 会拒绝，
 因为这个 profile 的 `node_modules` 与 lockfile 由 Electron 应用独占。
 
 ### 命令行
@@ -114,7 +143,8 @@ dsh plugin --profile web add link:D:\path\to\dsh-semble  # Windows
 
 ### 前置条件
 
-PATH 上要有 [uv](https://docs.astral.sh/uv/)——`uvx` 负责从 PyPI 拉起 Semble：
+PATH 上要有 [uv](https://docs.astral.sh/uv/)——`uvx` 负责从 PyPI 拉起 Semble。宿主要求 Node.js
+`>=24.9`（见[兼容性](#兼容性)）。
 
 ```powershell
 winget install astral-sh.uv                      # Windows
@@ -134,20 +164,20 @@ curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS / Linux
 
 | 字段 | 默认值 | 什么时候改 |
 | --- | --- | --- |
-| `command` | `uvx` | 如果只装了 `.cmd` 包装，改指向 `uvx.exe` |
-| `args` | `--from 'semble[mcp]' semble` | 追加 `--content all` 让文档和配置也进索引 |
-| `args`（版本） | 浮动 | 改成 `semble[mcp]==X.Y.Z` 钉版本 |
-| `toolTimeoutMs` | `300000` | 首次调用要建索引并下载模型；想更快失败就调小 |
-| `defaultRepo` | 未设 | 调用省略 `repo` 时使用的绝对路径；调用一次后会自动复用上次的单个仓库 |
-| `env` | 空 | 受限网络加 `HF_ENDPOINT`；搬索引加 `SEMBLE_CACHE_LOCATION` |
+| `command` / `args` | `uvx` / `--from 'semble[mcp]' semble` | 只装了 `.cmd` 包装时把 `command` 指向 `uvx.exe`；在 `args` 里写 `semble[mcp]==X.Y.Z` 可钉版本。**工具和 `/semble` 共用这组启动参数。** 要检索文档/配置请传 `content: ["all"]` 或设 `defaultContent`，不要往 `args` 追加 CLI 参数 |
+| `toolTimeoutMs` | `300000` | 工具和 `/semble` 共用的调用上限；想更快失败就调小 |
+| `defaultContent` | `[code]` | 工具省略 `content` 时使用的类型，例如 `[all]` 或 `[code, docs]` |
+| `maxConcurrent` | `2` | 同时运行的 CLI 子进程上限；机器扛得住并行建索引时才调大 |
+| `defaultRepo` | 未设 | **首次**省略 `repo` 时使用的绝对路径；任何单仓库调用之后会自动复用上次的仓库 |
+| `env` | 空 | 受限网络加 `HF_ENDPOINT`；搬索引加 `SEMBLE_CACHE_LOCATION`；工具和 `/semble` 都会用到 |
 
-改设置会重新应用插件（重注册两个工具）；磁盘上的索引缓存不受影响。
+改设置会重新应用插件（重注册工具和命令）；磁盘上的索引缓存不受影响。类型不对的值过不了校验，
+该行会直接加载失败——改回正确值再重新应用即可。
 
 ## 调优
 
-Semble 从**运行它的进程**的环境变量读配置。检索工具的环境变量写在插件 `config` 的 `env` 里；
-`/semble` 是另起进程、继承宿主环境，所以要让报表和检索看到同一份配置时，两处都要设——真正会出问题的
-只有 `SEMBLE_CACHE_LOCATION`。
+Semble 从**运行它的进程**的环境变量读配置。把覆盖值写在插件 `config` 的 `env` 里即可；检索工具和
+`/semble` 现在走同一个 runner，会看到同一份 `SEMBLE_*` 配置，不需要在两处分别设置。
 
 | 变量 | 默认值 | 作用 |
 | --- | --- | --- |
@@ -157,6 +187,10 @@ Semble 从**运行它的进程**的环境变量读配置。检索工具的环境
 | `SEMBLE_MAX_FILE_BYTES` | `1000000` | 超过这个大小的文件跳过；生成代码也想进索引就调大 |
 | `SEMBLE_CLONE_TIMEOUT` | `60` | clone `https://` 仓库的超时秒数 |
 | `HF_ENDPOINT` | `https://huggingface.co` | 一次性模型下载走的镜像 |
+
+并发的 Semble CLI 进程由进程内的 FIFO 信号量限制（默认 **2** 个，改 `maxConcurrent` 可调整），避免并行的
+工具/sub-agent 调用在 `uvx` 环境准备、索引锁和嵌入模型内存上互相争抢。POSIX 上超时或中止会终止整棵
+子进程树（先 SIGTERM，短暂宽限后 SIGKILL）；Windows 上只终止直系子进程。
 
 ### 排除文件
 
@@ -183,7 +217,7 @@ test/fixtures/
 
 git 地址同理，首次会 clone 进缓存。每个仓库各有一份索引；传数组时，每个仓库各付一次首次建索引的成本。
 命中路径按仓库加了前缀，输出还会多一行 `Sources: <标签> → <源路径>`：git 地址的标签只是个名字，
-要按这一行给出的路径去打开命中文件。
+要按这一行给出的路径去打开命中文件。多仓库调用不会被记住为下次调用的默认值（见[工具怎么用](#工具怎么用)）。
 
 ## 命令
 
@@ -253,11 +287,11 @@ Semble 本体**不做 vendored 内嵌**。插件只声明如何从 PyPI 拉起�
 用更新的版本重跑安装，或在设置页点「更新」：
 
 ```sh
-dsh plugin --profile web add dsh-semble@3.0.0
+dsh plugin --profile web add dsh-semble@3.2.0
 ```
 
 源码安装则换 ref 重跑，例如
-`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v3.0.0`。
+`dsh plugin --profile web add github:CodeIntegrity/dsh-semble#v3.2.0`。
 
 ## 兼容性
 
@@ -267,14 +301,16 @@ dsh plugin --profile web add dsh-semble@3.0.0
   PyPI `semble` 版本——插件不做 pin，见「bundle 装配」）；
 - 插件入口：`dsh-semble` 的 default export 与具名 `apply`，接收 `(ctx, config)`——`config` 是
   loader 行的 `config`，插件自行兜默认值；上下文带 `skills`、可选 `inject`/`tools`/`commands`；
-- `/semble` 的子命令白名单（`savings`、`file-types`、`version`）与返回结构
+- `/semble` 的子命令白名单（`savings`、`file-types`、`version`、`clear`）与返回结构
   （`{ kind: 'success' | 'error', text }`）；
+- 插件设置字段 `command`、`args`、`toolTimeoutMs`、`defaultRepo`、`defaultContent`、
+  `maxConcurrent`、`env`，以及导出的 Standard Schema `Config`；
 - 导出项 `./locale/*.json`、`./icon` 与 `./package.json`。
 
 不在承诺范围内：`cordis.patch.yml` 内部的行 id 与启动细节（那是宿主接线，不是 API）、路由 skill
 的名称与正文，以及 `lib/` 中除入口外的一切——测试会 import `parseSembleArgs`/`runSemble`，但下游
-包不应依赖。`engines` 的默认要求（`node` 与 `dsh`）在一个大版本内只放宽不收紧；提高最低版本最多
-算 minor，因为安装经由包管理器解析。
+包不应依赖。`engines` 的默认要求（`node >=24.9` 与 `dsh >=0.2.1-rc.2`）在一个大版本内只放宽不收紧；
+提高最低版本最多算 minor，因为安装经由包管理器解析。
 
 **2.x → 3.0.0**：MCP 桥被移除，工具名从 `mcp__semble__search` / `mcp__semble__find_related` 改为
 `semble_search` / `semble_find_related`，设置字段 `toolCallTimeoutMs` 更名为 `toolTimeoutMs`。
@@ -290,6 +326,31 @@ skill 依赖，插件行报「异常」且工具不出现（2.x 的锚点行其�
 **3.0.2 → 3.0.3**：仅文档——路由 skill 的「工具缺失」一节现在点明 CLI 启动失败的常见原因
 （宿主 PATH 上缺 `uv`）与 Windows `uvx.cmd` 包装的规避方法，排障闭环留在 skill 内而不必翻
 README。无代码改动。
+
+**3.0.3 → 3.0.4**：与 DSH 0.2.2-alpha.2 对齐引擎声明，把 `engines.node` 从 `>=22` 提到
+`>=24.9`、`@types/node` 从 `^22` 提到 `^24`。无运行时代码改动。
+
+**3.0.4 → 3.0.5**：跟踪上游 `semble` 0.7.3 但不 pin。`semble_search` 输出末尾新增来自上游
+`repos` 映射的 `Sources: <标签> → <源路径>` 行——这正是 git 地址命中能被打开的关键。CLI 契约
+其余部分不变。
+
+**3.0.5 → 3.0.6**：用零依赖 FIFO 信号量把并发 CLI 子进程限制在 2 个；给子进程设
+`PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8`，让 Windows 重定向输出写 UTF-8；并记录
+`/semble clear orphans` 在清理 git worktree 后的用法。
+
+**3.0.6 → 3.1.0**：单仓库调用会被记住，后续调用可省略 `repo`（多仓库调用不会）；新增
+`defaultRepo` 设置兜住首次无仓库调用。超时/中止现在在 POSIX 上终止整棵子进程树（SIGTERM →
+SIGKILL，Windows 仍只杀直系子进程）。skill 与两个工具的说明现在会把行为类问题先导向工具，
+而不是先猜 grep 关键词。
+
+**3.1.0 → 3.1.1**：把 `pnpm-lock.yaml` 纳入提交，让 pnpm 用户解析到与 CI 相同的开发依赖版本，
+并在 `.gitignore` 里忽略 `test` 路径。无 API 变化。
+
+**3.1.1 → 3.2.0**：新增 `defaultContent` 与 `maxConcurrent` 设置；`/semble` 现在使用插件的
+`command` / `args` / `env` / `toolTimeoutMs` 设置，所以 Windows 的 `uvx.exe` 修正与缓存目录覆盖对报表
+和检索同时生效。CI 与发布迁移到 Node `24.9`。导出的 `Config` schema 现在会把不合法的字段报成 issues，
+不再静默放行；issue 会让该行拒绝加载，所以设置里的笔误表现为插件行失败，而不是悄悄退回默认值。
+无破坏性 API 变化：两个工具、`/semble` 白名单与入口签名都不变，省略的新设置保持默认值。
 
 ## 卸载
 
@@ -315,8 +376,8 @@ dsh plugin --profile web remove dsh-semble
 | 检索报「did not finish within …」超时 | 建索引 + 下载模型超过了 `toolTimeoutMs` | 调大插件设置里的 `toolTimeoutMs`，或先用 CLI 检索热身 |
 | 检索报「The Semble CLI could not be started」 | 宿主 PATH 上没有 `uvx` | 装 uv，重启 DSH；Windows 上只有 `.cmd` 包装时把 `command` 改成 `uvx.exe` |
 | 大改之后检索结果偏旧 | 磁盘索引复用了「自认为没变」的文件 | `uvx --from "semble[mcp]" semble clear index` 后再检索 |
-| `/semble` 答「Could not start the Semble CLI」 | 宿主 PATH 上没有 `uvx` | 装 uv，重启 DSH |
-| `savings` 统计的调用次数偏少 | 报表读的是缓存位置，`/semble` 不继承插件 `env` 里的 `SEMBLE_CACHE_LOCATION` | 在宿主环境里也设一次 `SEMBLE_CACHE_LOCATION` |
+| `/semble` 答「Could not start the Semble CLI」 | 宿主 PATH 上没有 `uvx`，或 `command` 配错 | 装 uv，重启 DSH；只装了 `.cmd` 包装时把 `command` 设为 `uvx.exe` |
+| `savings` 统计的调用次数偏少 | 手动跑的 CLI 与插件 runner 用了不同的 `SEMBLE_CACHE_LOCATION` | 在插件 `env` 里设 `SEMBLE_CACHE_LOCATION`，工具和 `/semble` 就会一致 |
 | 安装时报 `ERR_PNPM_GIT_RESOLVE_FAILED` | 到 github.com 没有网络通路 | 改用 tarball 链接或镜像 |
 
 ## 开发
@@ -326,7 +387,8 @@ git clone https://github.com/CodeIntegrity/dsh-semble
 dsh plugin --profile web add link:$(pwd)   # 之后改代码、重启 DSH
 ```
 
-没有构建步骤：`lib/` 是纯 ESM，`cordis.patch.yml` 直接读取。唯一运行时依赖是 `uv`。
+需要 Node.js `>=24.9`（与宿主最低版本一致）。没有构建步骤：`lib/` 是纯 ESM，`cordis.patch.yml` 直接读取。
+唯一运行时依赖是 `uv`。
 
 `npm test` 用 Node 自带的 test runner 跑测试。涉及子进程的用例用 Node 可执行文件代替 `uvx`，
 所以不会下载 Semble，也不会碰你的缓存。`npm run typecheck` 以 checkJs 模式对 `lib/` 跑 `tsc`——

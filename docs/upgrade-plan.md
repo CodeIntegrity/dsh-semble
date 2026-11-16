@@ -59,10 +59,11 @@ python worker 会一起死，而不是只杀壳。`kill` 返回 `false` 时立�
 CI 已跑三平台，但测试里的子进程是 `process.execPath` 替身，`uvx → python` 这条真实父子链一次都没
 进过测试。Windows 的终止语义（`TerminateProcess`）只能真机验证，回归仍要靠人工冒烟。
 
-### 3.3 并发上限硬编码
+### 3.3 并发上限（已可配置）
 
-`DEFAULT_MAX_CONCURRENT = 2` 写死在 `lib/cli.js`，而上游 `SEMBLE_INDEX_WORKERS` 默认 4：两路并发
-冷启动索引最坏会拉起 8 个分块 worker。属资源观察项，不是缺陷。
+默认仍是 `DEFAULT_MAX_CONCURRENT = 2`（上游 `SEMBLE_INDEX_WORKERS` 默认 4，两路冷启动最坏 8 个
+分块 worker），但 `maxConcurrent` 现在是可校验的插件设置：`runSemble` 按不同上限复用独立信号量，
+工具和 `/semble` 共用同一份设置。
 
 ### 3.4 已知权衡
 
@@ -84,7 +85,7 @@ CI 已跑三平台，但测试里的子进程是 `process.execPath` 替身，`uv
 - A2：uv 的 `--from` 接受 PEP 508 约束——**已证伪为真**：`semble[mcp]>=0.7` 实测解析到 0.7.x。
 - A3：`assets/icon-180.png` 仅供商店/仓库展示。
 - A4：DSH 按 loader 条目名匹配包名判定"已加载"。
-- A5：Node 22 `--experimental-test-coverage` 输出可直接作 CI 基线（未启用）。
+- A5：Node 24.9 `--experimental-test-coverage` 输出可直接作 CI 基线（未启用）；CI 与发布已切到 24.9。
 
 ## 六、上游与发布
 

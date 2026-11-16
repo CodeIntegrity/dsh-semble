@@ -35,8 +35,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.9
           registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Read package metadata
         id: pkg
@@ -59,6 +62,9 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Already published?
         id: exists

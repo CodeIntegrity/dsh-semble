@@ -18,7 +18,7 @@ import {
   renderHits,
   createSembleTools,
 } from '../lib/tools.js'
-import { SEMBLE_UVX_PREFIX } from '../lib/cli.js'
+import { DEFAULT_MAX_CONCURRENT, SEMBLE_UVX_PREFIX } from '../lib/cli.js'
 
 /** One hit exactly as `semble search --format json` reported it on 0.7.0, re-verified against 0.7.3. */
 const CLI_SHAPE = {
@@ -47,6 +47,8 @@ test('parseToolConfig falls back to shipped defaults', () => {
     args: SEMBLE_UVX_PREFIX,
     env: {},
     toolTimeoutMs: DEFAULT_TOOL_TIMEOUT_MS,
+    maxConcurrent: DEFAULT_MAX_CONCURRENT,
+    defaultContent: ['code'],
     defaultRepo: null,
     lastRepo: null,
   })
@@ -56,15 +58,23 @@ test('parseToolConfig falls back to shipped defaults', () => {
 
 test('parseToolConfig keeps valid overrides', () => {
   const config = parseToolConfig({
-    command: 'semble.exe',
+    command: '  semble.exe  ',
     args: ['search-proxy'],
     env: { HF_ENDPOINT: 'https://hf-mirror.com', BROKEN: 42 },
     toolTimeoutMs: 600_000,
+    maxConcurrent: 4,
+    defaultContent: ['docs', 'config', 'docs'],
   })
   assert.equal(config.command, 'semble.exe')
   assert.deepEqual(config.args, ['search-proxy'])
   assert.deepEqual(config.env, { HF_ENDPOINT: 'https://hf-mirror.com' })
   assert.equal(config.toolTimeoutMs, 600_000)
+  assert.equal(config.maxConcurrent, 4)
+  assert.deepEqual(config.defaultContent, ['docs', 'config'])
+})
+
+test('parseToolConfig accepts defaultContent as a single string', () => {
+  assert.deepEqual(parseToolConfig({ defaultContent: 'all' }).defaultContent, ['all'])
 })
 
 test('parseToolConfig survives mistyped fields', () => {
@@ -72,11 +82,15 @@ test('parseToolConfig survives mistyped fields', () => {
     command: 7,
     args: ['ok', 42],
     toolTimeoutMs: -1,
+    maxConcurrent: 0,
+    defaultContent: ['bogus'],
     env: 'HF_ENDPOINT=https://example.com',
   })
   assert.equal(config.command, 'uvx')
   assert.deepEqual(config.args, SEMBLE_UVX_PREFIX)
   assert.equal(config.toolTimeoutMs, DEFAULT_TOOL_TIMEOUT_MS)
+  assert.equal(config.maxConcurrent, DEFAULT_MAX_CONCURRENT)
+  assert.deepEqual(config.defaultContent, ['code'])
   assert.deepEqual(config.env, {})
 })
 
@@ -119,6 +133,14 @@ test('buildSearchArgs clamps out-of-range values to CLI-safe numbers', () => {
   assert.equal(argv[argv.indexOf('-k') + 1], '100')
   assert.equal(argv[argv.indexOf('--max-snippet-lines') + 1], '0')
   assert.deepEqual(argv.slice(argv.indexOf('--content') + 1, argv.indexOf('--format')), ['code'])
+})
+
+test('buildSearchArgs uses defaultContent only when the call omits content', () => {
+  const omitted = buildSearchArgs({ query: 'q', repos: ['.'] }, ['docs', 'config'])
+  assert.deepEqual(omitted.slice(omitted.indexOf('--content') + 1, omitted.indexOf('--format')), ['docs', 'config'])
+
+  const explicit = buildSearchArgs({ query: 'q', repos: ['.'], content: ['code'] }, ['all'])
+  assert.deepEqual(explicit.slice(explicit.indexOf('--content') + 1, explicit.indexOf('--format')), ['code'])
 })
 
 test('buildFindRelatedArgs puts path, line, then repos', () => {
@@ -210,6 +232,16 @@ test('renderHits gives guidance on an empty result', () => {
   assert.match(text, /content \["all"\]/)
 })
 
+test('renderHits keeps the location line but no empty fence without snippets', () => {
+  const text = renderHits('q', ['/repo'], [
+    { file_path: 'lib/tools.js', start_line: 10, end_line: 20, score: 0.01, content: '' },
+    { file_path: 'lib/cli.js', start_line: 7, end_line: null, score: null, content: '  ' },
+  ])
+  assert.equal(text.includes('```'), false)
+  assert.match(text, /lib\/tools\.js:10-20 {2}score 0\.0100/)
+  assert.match(text, /lib\/cli\.js:7\b/)
+})
+
 test('createSembleTools yields exactly the two registry-ready definitions', () => {
   const [search, findRelated] = createSembleTools(parseToolConfig(undefined))
   assert.equal(search.name, 'semble_search')
@@ -257,6 +289,14 @@ test('execute reports a non-zero exit with the child stderr', async () => {
   await assert.rejects(
     () => search.execute({ query: 'q', repo: 'D:\\work\\repo' }),
     /exited with code 3[\s\S]*semulation failure/,
+  )
+})
+
+test('execute names the searched repository when the CLI reports no chunk', async () => {
+  const [, findRelated] = standInTools('console.error("No chunk found at lib\\\\index.js:285."); process.exit(1)')
+  await assert.rejects(
+    () => findRelated.execute({ path: 'lib\\index.js', line: 285, repo: 'D:\\work\\repo' }),
+    /exited with code 1[\s\S]*Searched: D:\\work\\repo[\s\S]*No chunk found/,
   )
 })
 

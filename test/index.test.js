@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import sembleBundle, { handleSembleCommand } from '../lib/index.js'
-import { DEFAULT_TOOL_TIMEOUT_MS } from '../lib/tools.js'
+import sembleBundle, {
+  apply,
+  Config,
+  handleSembleCommand,
+  inject as pluginInject,
+  name as pluginName,
+} from '../lib/index.js'
+import { DEFAULT_TOOL_TIMEOUT_MS, parseToolConfig } from '../lib/tools.js'
 
 /** `node -e savings` replaces uvx, so the handler branches run without an install. */
 const NODE_RUNNER = { command: process.execPath, prefix: ['-e'] }
@@ -152,5 +158,91 @@ describe('sembleBundle', () => {
 
     assert.ok(!state.skills[0].content.startsWith('---'))
     assert.match(state.skills[0].content, /^# Semble code search/)
+  })
+
+  it('runs /semble through the same launcher settings as the tools', async () => {
+    const { ctx, state } = fakeContext()
+
+    sembleBundle(ctx, {
+      command: process.execPath,
+      args: ['-e', 'process.stdout.write("configured:" + process.env.DSH_SEMBLE_PROBE)', '--'],
+      env: { DSH_SEMBLE_PROBE: 'ok' },
+      toolTimeoutMs: 5_000,
+      maxConcurrent: 3,
+    })
+
+    const result = await state.commands[0].handler({ rawInput: 'savings' })
+    assert.deepEqual(result, { kind: 'success', text: 'configured:ok' })
+  })
+
+  it('exposes a Standard Schema and a consistent export shape', () => {
+    assert.equal(pluginName, 'dsh-semble')
+    assert.deepEqual(pluginInject, ['skills'])
+    assert.equal(apply, sembleBundle)
+    assert.equal(sembleBundle.name, 'dsh-semble')
+    assert.equal(sembleBundle.Config, Config)
+
+    const validated = Config['~standard'].validate(undefined)
+    assert.equal(validated.issues, undefined)
+    assert.equal(validated.value, undefined)
+  })
+
+  it('reports malformed config fields as Standard Schema issues', () => {
+    const result = Config['~standard'].validate({
+      command: 42,
+      args: 'not-a-list',
+      toolTimeoutMs: -1,
+      maxConcurrent: 0,
+      defaultContent: 'bogus',
+      defaultRepo: '',
+      env: { BROKEN: 7 },
+    })
+
+    assert.equal(result.value, undefined)
+    const messages = result.issues.map((issue) => issue.message)
+    assert.ok(messages.includes('command must be a non-empty string'))
+    assert.ok(messages.includes('args must be a non-empty list of strings'))
+    assert.ok(messages.includes('toolTimeoutMs must be a positive number'))
+    assert.ok(messages.includes('maxConcurrent must be a positive number (>= 1)'))
+    assert.ok(messages.includes('defaultContent must be a non-empty list of code/docs/config/all'))
+    assert.ok(messages.includes('defaultRepo must be a non-empty string'))
+    assert.ok(messages.includes('env.BROKEN must be a string'))
+  })
+
+  it('accepts a fully valid config without issues', () => {
+    const raw = {
+      command: 'uvx',
+      args: ['--from', 'semble', 'semble'],
+      toolTimeoutMs: 300000,
+      maxConcurrent: 4,
+      defaultContent: ['code', 'docs'],
+      defaultRepo: '/work/repo',
+      env: { HF_ENDPOINT: 'https://hf-mirror.com' },
+    }
+    const result = Config['~standard'].validate(raw)
+    assert.equal(result.issues, undefined)
+    // Validation must not rewrite the value: `apply` normalizes it once, and a
+    // normalized value fed back through parseToolConfig warns about its own
+    // `null` placeholders.
+    assert.deepEqual(result.value, raw)
+  })
+
+  it('hands apply a config that parses without warnings', () => {
+    const raw = { command: 'uvx', args: ['--from', 'semble', 'semble'], maxConcurrent: 2 }
+    const warnings = []
+    const original = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      parseToolConfig(Config['~standard'].validate(raw).value)
+    } finally {
+      console.warn = original
+    }
+    assert.deepEqual(warnings, [])
+  })
+
+  it('rejects a non-object config', () => {
+    const result = Config['~standard'].validate('uvx')
+    assert.deepEqual(result.issues, [{ message: 'config must be an object' }])
+    assert.equal(result.value, undefined)
   })
 })

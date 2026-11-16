@@ -49,6 +49,13 @@
         # to let the very first call omit it too.
         # defaultRepo: D:/work/repo
         toolTimeoutMs: 300000
+        # Content types used when a tool call omits `content`. The per-call
+        # argument still wins; use `["all"]` to include docs and config. Do not
+        # append CLI flags to `args` — `--content` belongs to the subcommand.
+        # defaultContent: [code]
+        # Cap simultaneous CLI children; raise it only if the machine can
+        # afford uvx setup, index locks and embedding-model RAM together.
+        # maxConcurrent: 2
         # No `env` defaults on purpose: the embedding model
         # (minishlab/potion-code-16M-v2) is fetched from huggingface.co unless the
         # operator asks otherwise. On networks where huggingface.co is unreachable,
