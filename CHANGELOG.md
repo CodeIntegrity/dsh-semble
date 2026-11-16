@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.1 (2026-11-16)
+
+- Commit `pnpm-lock.yaml` alongside `package-lock.json` so pnpm users resolve
+  the same `@types/node` and `typescript` versions CI installs.
+- Ignore the `test` path in `.gitignore`.
+
 ## 3.1.0 (2026-11-13)
 
 - Remember the last single repository: once a call names one `repo`, later
